@@ -95,14 +95,32 @@ class ConnectionManager:
 
         Supported filter keys (all optional):
         - ``lap``: int — only receive data for this lap
-        - ``fields``: list[str] — ignored at broadcast level (field
-          projection is a presentation concern handled by the client)
+        - ``year``: int — only receive data for this season year
+        - ``round``: int — only receive data for this round
+        - ``session_type`` or ``session``: str — only receive data for this session code
+        - ``driver``: str — only receive data for this driver
         """
         if not filters:
             return True
 
         lap_filter = filters.get("lap")
         if lap_filter is not None and message.payload.lap != lap_filter:
+            return False
+
+        year_filter = filters.get("year")
+        if year_filter is not None and message.year is not None and message.year != year_filter:
+            return False
+
+        round_filter = filters.get("round")
+        if round_filter is not None and message.round is not None and message.round != round_filter:
+            return False
+
+        session_filter = filters.get("session_type") or filters.get("session")
+        if session_filter is not None and message.session_type is not None and message.session_type != session_filter:
+            return False
+
+        driver_filter = filters.get("driver")
+        if driver_filter is not None and message.driver is not None and message.driver.upper() != driver_filter.upper():
             return False
 
         return True

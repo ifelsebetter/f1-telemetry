@@ -67,6 +67,7 @@ export default function Dashboard() {
     stats,
     loading,
     error,
+    activeSession,
     loadSession,
     wsStatus,
     clearError,
@@ -90,6 +91,7 @@ export default function Dashboard() {
             sessions={sessions}
             onSelect={loadSession}
             loading={loading}
+            activeSession={activeSession}
           />
           {stats && (
             <div className="dashboard__data-badge font-mono">

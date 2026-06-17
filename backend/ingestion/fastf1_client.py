@@ -35,31 +35,67 @@ class FastF1Client:
     def fetch_session_telemetry(
         self,
         year: int,
-        round_number: int,
+        round_number: int | str,
         session_type: str,
-    ) -> list[dict[str, Any]]:
-        """Fetch telemetry for every lap in a session.
+        driver: str | None = None,
+    ) -> tuple[list[dict[str, Any]], str, int, str]:
+        """Fetch telemetry for every lap in a session for a driver.
 
-        Returns a list of raw dicts, one per telemetry sample, each
-        containing at minimum: ``Time``, ``Speed``, ``Throttle``,
-        ``Brake``, ``nGear``, ``RPM``, and ``LapNumber``.
+        Returns a tuple: (records, driver_code, resolved_round, event_name)
         """
         try:
             session = fastf1.get_session(year, round_number, session_type)
-            session.load(telemetry=True, weather=False, messages=False)
+            resolved_round = int(session.event["RoundNumber"])
+            event_name = str(session.event["EventName"])
         except Exception:
             logger.exception(
-                "Failed to load session %s/%s/%s",
+                "Failed to load session metadata for %s/%s/%s",
                 year,
                 round_number,
                 session_type,
             )
-            return []
+            return [], "", 0, ""
+
+        try:
+            session.load(telemetry=True, weather=False, messages=False)
+        except Exception:
+            logger.exception(
+                "Failed to load telemetry for session %s/%s/%s",
+                year,
+                round_number,
+                session_type,
+            )
+            return [], "", resolved_round, event_name
+
+        if session.laps.empty:
+            logger.warning("No laps found in session %s/%s/%s", year, round_number, session_type)
+            return [], "", resolved_round, event_name
+
+        resolved_driver = ""
+        driver_laps = None
+
+        if driver:
+            driver_upper = driver.strip().upper()
+            unique_drivers = session.laps["Driver"].unique()
+            if driver_upper in unique_drivers:
+                resolved_driver = driver_upper
+                driver_laps = session.laps.pick_driver(resolved_driver)
+                logger.info("Selected requested driver %s for telemetry ingestion", resolved_driver)
+
+        if driver_laps is None:
+            try:
+                fastest_lap = session.laps.pick_fastest()
+                resolved_driver = fastest_lap["Driver"]
+                driver_laps = session.laps.pick_driver(resolved_driver)
+                logger.info("Selected driver %s for telemetry ingestion", resolved_driver)
+            except Exception:
+                resolved_driver = session.laps["Driver"].iloc[0]
+                driver_laps = session.laps.pick_driver(resolved_driver)
+                logger.info("Selected fallback driver %s for telemetry ingestion", resolved_driver)
 
         all_records: list[dict[str, Any]] = []
-
-        for lap_number in session.laps["LapNumber"].unique():
-            lap = session.laps.pick_laps(lap_number)
+        for lap_number in driver_laps["LapNumber"].unique():
+            lap = driver_laps.pick_laps(lap_number)
             try:
                 telemetry: pd.DataFrame = lap.get_telemetry()
             except Exception:
@@ -82,13 +118,14 @@ class FastF1Client:
             all_records.extend(records)
 
         logger.info(
-            "Fetched %d telemetry records for %s/%s/%s",
+            "Fetched %d telemetry records for %s/%s/%s (driver=%s)",
             len(all_records),
             year,
             round_number,
             session_type,
+            resolved_driver,
         )
-        return all_records
+        return all_records, resolved_driver, resolved_round, event_name
 
     def list_available_sessions(self, year: int) -> list[dict[str, Any]]:
         """Return metadata for all sessions in a given season.

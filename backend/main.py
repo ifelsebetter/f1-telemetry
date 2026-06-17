@@ -52,11 +52,31 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
     """Initialise shared services on startup, clean up on shutdown."""
 
     # --- Startup ---
-    app.state.telemetry_store = TelemetryStore()
+    store = TelemetryStore()
+    app.state.telemetry_store = store
     app.state.ws_manager = ConnectionManager()
     app.state.fastf1_client = FastF1Client()
 
     logger.info("Services initialised")
+
+    # Pre-populate with example telemetry data
+    try:
+        from backend.api.routes import load_example_data
+        from backend.services.processing import process_raw_batch
+        example_records = load_example_data()
+        if example_records:
+            processed = process_raw_batch(example_records)
+            await store.store_telemetry(
+                year=2023,
+                round_number=1,
+                session_type="Q",
+                driver="VER",
+                data=processed,
+                event_name="Bahrain Grand Prix",
+            )
+            logger.info("Pre-populated store with example telemetry data")
+    except Exception as e:
+        logger.error("Failed to pre-populate store with example data: %s", e)
 
     start_scheduler()
 

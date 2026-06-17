@@ -65,7 +65,13 @@ export async function fetchSessions() {
 export async function fetchTelemetry(params) {
   const searchParams = new URLSearchParams();
   searchParams.set('year', String(Number(params.year)));
-  searchParams.set('round', String(Number(params.round)));
+  
+  if (params.round != null) {
+    searchParams.set('round', String(Number(params.round)));
+  }
+  if (params.race != null && String(params.race).trim().length > 0) {
+    searchParams.set('race', String(params.race).trim());
+  }
 
   // Sanitise session_type to alphanumeric only
   const sessionType = String(params.session_type).replace(/[^A-Za-z0-9]/g, '');
@@ -73,6 +79,10 @@ export async function fetchTelemetry(params) {
     throw new ApiError('Invalid session type', 400);
   }
   searchParams.set('session_type', sessionType);
+
+  if (params.driver != null && String(params.driver).trim().length > 0) {
+    searchParams.set('driver', String(params.driver).trim().toUpperCase());
+  }
 
   if (params.lap != null) {
     const lap = Number(params.lap);

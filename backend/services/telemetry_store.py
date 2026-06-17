@@ -1,6 +1,6 @@
 """In-memory telemetry storage.
 
-Provides a dict-backed store keyed by ``(year, round, session_type)`` tuples.
+Provides a dict-backed store keyed by ``(year, round, session_type, driver)`` tuples.
 All mutating operations are guarded by an ``asyncio.Lock`` for safe concurrent
 access from multiple request handlers.
 
@@ -23,7 +23,7 @@ from backend.models.schemas import (
 
 logger = logging.getLogger(__name__)
 
-SessionKey = tuple[int, int, str]
+SessionKey = tuple[int, int, str, str]
 
 
 class TelemetryStore:
@@ -43,11 +43,13 @@ class TelemetryStore:
         year: int,
         round_number: int,
         session_type: str,
+        driver: str,
         data: list[TelemetryData],
         event_name: str = "",
     ) -> None:
-        """Insert or replace telemetry for a session."""
-        key: SessionKey = (year, round_number, session_type)
+        """Insert or replace telemetry for a session and driver."""
+        driver_upper = driver.upper()
+        key: SessionKey = (year, round_number, session_type, driver_upper)
         async with self._lock:
             self._data[key] = data
             self._session_info[key] = SessionInfo(
@@ -55,6 +57,7 @@ class TelemetryStore:
                 round=round_number,
                 session_type=session_type,
                 event_name=event_name,
+                driver=driver_upper,
             )
         logger.info(
             "Stored %d records for session %s",
@@ -71,10 +74,30 @@ class TelemetryStore:
         query: TelemetryQuery,
     ) -> TelemetryResponse:
         """Filter stored telemetry by the parameters in *query*."""
-        key: SessionKey = (query.year, query.round, query.session_type)
+        year = query.year
+        round_val = query.round
+        s_type = query.session_type
+        driver_val = query.driver.upper() if query.driver else None
 
+        records: list[TelemetryData] = []
+        resolved_driver = driver_val or ""
+        event_name = ""
         async with self._lock:
-            records = list(self._data.get(key, []))
+            if driver_val:
+                session_key = (year, round_val, s_type, driver_val)
+                if session_key in self._data:
+                    records = list(self._data[session_key])
+                if session_key in self._session_info:
+                    event_name = self._session_info[session_key].event_name
+                    resolved_driver = self._session_info[session_key].driver
+            else:
+                for k, val in self._data.items():
+                    if k[0] == year and k[1] == round_val and k[2] == s_type:
+                        records = list(val)
+                        if k in self._session_info:
+                            event_name = self._session_info[k].event_name
+                            resolved_driver = self._session_info[k].driver
+                        break
 
         # --- lap filter ---
         if query.lap is not None:
@@ -107,7 +130,15 @@ class TelemetryStore:
             ]
 
         summary = self._compute_summary(records)
-        return TelemetryResponse(data=records, summary=summary)
+        return TelemetryResponse(
+            data=records,
+            summary=summary,
+            year=year,
+            round=round_val,
+            session_type=s_type,
+            event_name=event_name,
+            driver=resolved_driver,
+        )
 
     async def list_sessions(self) -> list[SessionInfo]:
         """Return metadata for every stored session."""
@@ -119,10 +150,15 @@ class TelemetryStore:
         year: int,
         round_number: int,
         session_type: str,
+        driver: str | None = None,
     ) -> bool:
-        key: SessionKey = (year, round_number, session_type)
         async with self._lock:
-            return key in self._data
+            driver_upper = driver.upper() if driver else None
+            for key in self._data:
+                if key[0] == year and key[1] == round_number and key[2] == session_type:
+                    if driver_upper is None or key[3] == driver_upper:
+                        return True
+            return False
 
     # ------------------------------------------------------------------
     # Helpers

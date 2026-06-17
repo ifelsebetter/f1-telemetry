@@ -6,7 +6,7 @@ are initialised once at startup and shared across all request handlers.
 
 from __future__ import annotations
 
-from fastapi import Request
+from fastapi import Request, WebSocket
 
 from backend.ingestion.fastf1_client import FastF1Client
 from backend.services.telemetry_store import TelemetryStore
@@ -18,9 +18,9 @@ def get_telemetry_store(request: Request) -> TelemetryStore:
     return request.app.state.telemetry_store
 
 
-def get_ws_manager(request: Request) -> ConnectionManager:
+def get_ws_manager(websocket: WebSocket) -> ConnectionManager:
     """Retrieve the ``ConnectionManager`` singleton from app state."""
-    return request.app.state.ws_manager
+    return websocket.app.state.ws_manager
 
 
 def get_fastf1_client(request: Request) -> FastF1Client:

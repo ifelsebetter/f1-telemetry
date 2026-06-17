@@ -104,6 +104,7 @@ async def ingest_and_process(
     year: int,
     round_number: int,
     session_type: str,
+    driver: str,
     store: TelemetryStore,
     ws_manager: ConnectionManager | None = None,
     event_name: str = "",
@@ -126,6 +127,7 @@ async def ingest_and_process(
         year=year,
         round_number=round_number,
         session_type=session_type,
+        driver=driver,
         data=data,
         event_name=event_name,
     )
@@ -136,6 +138,10 @@ async def ingest_and_process(
             message = TelemetryStreamMessage(
                 type="telemetry_update",
                 payload=record,
+                year=year,
+                round=round_number,
+                session_type=session_type,
+                driver=driver,
             )
             await ws_manager.broadcast(message)
 

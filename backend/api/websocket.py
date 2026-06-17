@@ -22,8 +22,6 @@ logger = logging.getLogger(__name__)
 ws_router = APIRouter(tags=["websocket"])
 
 
-
-
 @ws_router.websocket("/ws/telemetry")
 async def telemetry_stream(
     websocket: WebSocket,
@@ -58,7 +56,7 @@ async def telemetry_stream(
                         continue
 
                     # Process as a filter update
-                    allowed_keys = {"lap", "fields", "session_type", "year", "round"}
+                    allowed_keys = {"lap", "fields", "session_type", "year", "round", "driver"}
                     parsed = {k: v for k, v in msg.items() if k in allowed_keys}
                     manager._active[websocket] = parsed
                     logger.info("Updated filters for WebSocket: %s", parsed)

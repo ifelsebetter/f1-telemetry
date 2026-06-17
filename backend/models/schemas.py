@@ -50,6 +50,9 @@ class TelemetryQuery(BaseModel):
         pattern=r"^[A-Za-z0-9]+$",
         description="Session type code (e.g. FP1, Q, R, S)",
     )
+    driver: str | None = Field(
+        None, description="Driver code (optional)"
+    )
     lap: int | None = Field(
         None, ge=1, description="Filter to a specific lap (optional)"
     )
@@ -78,6 +81,11 @@ class TelemetryResponse(BaseModel):
         default_factory=dict,
         description="Aggregate statistics (avg speed, max RPM, etc.)",
     )
+    year: int | None = Field(None, description="Season year")
+    round: int | None = Field(None, description="Race weekend round number")
+    session_type: str | None = Field(None, description="Session type code (e.g. FP1, Q, R, S)")
+    event_name: str | None = Field(None, description="Event name")
+    driver: str | None = Field(None, description="Driver code")
 
 
 class ErrorResponse(BaseModel):
@@ -97,6 +105,10 @@ class TelemetryStreamMessage(BaseModel):
         ..., description="Message type, e.g. 'telemetry_update'"
     )
     payload: TelemetryData
+    year: int | None = None
+    round: int | None = None
+    session_type: str | None = None
+    driver: str | None = None
 
 
 # ---------------------------------------------------------------------------
@@ -110,6 +122,7 @@ class SessionInfo(BaseModel):
     round: int
     session_type: str
     event_name: str = ""
+    driver: str = ""
 
 
 # ---------------------------------------------------------------------------

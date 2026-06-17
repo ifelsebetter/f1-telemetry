@@ -1,5 +1,9 @@
 # Environment & Secrets
 .env
+.env.local
+.env.development.local
+.env.test.local
+.env.production.local
 .env.*
 *.pem
 *.key
@@ -27,7 +31,6 @@ var/
 wheels/
 share/python-wheels/
 *.egg-info/
-.installed.cfg
 *.egg
 MANIFEST
 .venv/
@@ -61,6 +64,8 @@ out/
 .parcel-cache/
 .docusaurus/
 .svelte-kit/
+.eslintcache
+playwright-report/
 
 # Logs & Temp
 *.log
@@ -102,8 +107,11 @@ dist-ssr/
 compiled/
 
 # AI & Project-Specific
-.agents
+.agents/
 artifacts/
 scratch/
 experiments/
 model_outputs/
+
+# Jupyter Notebooks
+.ipynb_checkpoints

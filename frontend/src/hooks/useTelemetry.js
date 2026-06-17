@@ -84,6 +84,7 @@ export function useTelemetry() {
   const [stats, setStats] = useState(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
+  const [activeSession, setActiveSession] = useState(null);
 
   const liveBufferRef = useRef([]);
   const activeRequestRef = useRef(null);
@@ -158,19 +159,49 @@ export function useTelemetry() {
   }, [lastMessage]);
 
   // Load a specific session's telemetry data
-  const loadSession = useCallback(async (year, round, sessionType) => {
-    // Input validation
-    if (
-      typeof year !== 'number' || year < 1950 || year > 2099 ||
-      typeof round !== 'number' || round < 1 ||
-      typeof sessionType !== 'string' || sessionType.length === 0 ||
-      !/^[A-Za-z0-9]+$/.test(sessionType)
-    ) {
-      setError('Invalid session parameters');
+  const loadSession = useCallback(async (year, raceOrRound, sessionType, driver) => {
+    const yearNum = Number(year);
+    if (Number.isNaN(yearNum) || yearNum < 1950 || yearNum > 2099) {
+      setError('Invalid year');
       return;
     }
 
-    const requestId = `${year}-${round}-${sessionType}`;
+    if (raceOrRound == null) {
+      setError('Race or Round is required');
+      return;
+    }
+
+    // if raceOrRound is a number, validate it. Otherwise, validate string length.
+    let parsedRound = Number(raceOrRound);
+    let race = null;
+    let round = null;
+    if (!Number.isNaN(parsedRound)) {
+      if (parsedRound < 1) {
+        setError('Round must be greater than or equal to 1');
+        return;
+      }
+      round = parsedRound;
+    } else {
+      if (typeof raceOrRound !== 'string' || raceOrRound.trim().length === 0) {
+        setError('Invalid race name');
+        return;
+      }
+      race = raceOrRound.trim();
+    }
+
+    const sType = String(sessionType || 'Q').trim().toUpperCase();
+    if (!sType || !/^[A-Z0-9]+$/.test(sType)) {
+      setError('Invalid session type');
+      return;
+    }
+
+    const driverCode = driver ? String(driver).trim().toUpperCase() : null;
+    if (driverCode && !/^[A-Z0-9]{3}$/.test(driverCode)) {
+      setError('Driver must be a 3-letter code (e.g. VER)');
+      return;
+    }
+
+    const requestId = `${yearNum}-${raceOrRound}-${sType}-${driverCode || 'ANY'}`;
     activeRequestRef.current = requestId;
 
     setLoading(true);
@@ -178,9 +209,11 @@ export function useTelemetry() {
 
     try {
       const response = await fetchTelemetry({
-        year,
+        year: yearNum,
         round,
-        session_type: sessionType,
+        race,
+        session_type: sType,
+        driver: driverCode,
       });
 
       if (activeRequestRef.current !== requestId) return;
@@ -190,6 +223,35 @@ export function useTelemetry() {
       );
 
       setTelemetryData(validData);
+
+      const resolvedYear = response.year || yearNum;
+      const resolvedRound = response.round || round || 1;
+      const resolvedSessionType = response.session_type || sType;
+      const resolvedDriver = response.driver || driverCode || 'VER';
+      const resolvedEventName = response.event_name || (race ? `${race} Grand Prix` : `Grand Prix Round ${resolvedRound}`);
+
+      const resolvedActiveSession = {
+        year: resolvedYear,
+        round: resolvedRound,
+        session_type: resolvedSessionType,
+        driver: resolvedDriver,
+        event_name: resolvedEventName,
+      };
+
+      setActiveSession(resolvedActiveSession);
+
+      // If the session is not in the dropdown list, add it!
+      setSessions((prevSessions) => {
+        const exists = prevSessions.some(
+          (s) =>
+            s.year === resolvedYear &&
+            s.round === resolvedRound &&
+            s.session_type === resolvedSessionType &&
+            s.driver === resolvedDriver
+        );
+        if (exists) return prevSessions;
+        return [...prevSessions, resolvedActiveSession];
+      });
 
       if (validData.length > 0) {
         setStats(computeStatsFromBatch(validData));
@@ -202,7 +264,12 @@ export function useTelemetry() {
       setLiveData([]);
 
       // Update WebSocket filters
-      sendMessage({ year, round, session_type: sessionType });
+      sendMessage({
+        year: resolvedYear,
+        round: resolvedRound,
+        session_type: resolvedSessionType,
+        driver: resolvedDriver,
+      });
     } catch (err) {
       if (activeRequestRef.current === requestId) {
         setError(err.message || 'Failed to load telemetry data');
@@ -213,6 +280,14 @@ export function useTelemetry() {
       }
     }
   }, [sendMessage]);
+
+  // Auto-load the first available session if none is active
+  useEffect(() => {
+    if (sessions.length > 0 && telemetryData.length === 0 && !loading && !error && !activeSession) {
+      const first = sessions[0];
+      loadSession(first.year, first.round, first.session_type, first.driver);
+    }
+  }, [sessions, telemetryData.length, loading, error, activeSession, loadSession]);
 
   // Allow dismissing errors
   const clearError = useCallback(() => setError(null), []);
@@ -225,6 +300,7 @@ export function useTelemetry() {
     stats,
     loading,
     error,
+    activeSession,
     loadSession,
     wsStatus,
     clearError,
