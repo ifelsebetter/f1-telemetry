@@ -1,56 +1,54 @@
-# F1 Telemetry Platform
+# F1 Telemetry & AI Pipeline Platform
+
+A high-performance, full-stack telemetry visualization dashboard for Formula 1 racing. This project streams and charts real-time and historical F1 telemetry (speed, throttle, brake, gear, and RPM) using an asynchronous Python FastAPI backend, a responsive React frontend with a dark/light mode UI, and a dedicated AI agent orchestration pipeline.
+
+---
 
 ## Overview
-The **F1 Telemetry Platform** is a high-performance, asynchronous FastAPI backend designed to process, store, and stream Formula 1 telemetry data. By wrapping the `fastf1` library, the platform ingests rich session data—including speed, throttle, brake, gear, and engine RPM—and exposes it via REST APIs and real-time WebSocket connections. The system features validation schemas, local file caching to prevent API rate limits, and a thread-safe in-memory store engineered to be easily swappable with production-grade datastores.
+
+The **F1 Telemetry Platform** delivers a sub-millisecond latency telemetry engine. It leverages the `fastf1` library to ingest granular timing logs, process telemetry feeds through clean sanitization and validation logic, and stream live lap updates to a modern, accessible web dashboard. 
+
+The repository features:
+- **FastAPI Backend**: Serving historical REST APIs and managing persistent real-time WebSocket connections.
+- **Vite & React Frontend**: Rendering optimized charts (Recharts) and KPI indicators with accessibility target spacing and a global dark theme.
+- **AI Agent Pipeline (`.agents/`)**: Organizing the planner, builder, and QA skills used for automated code auditing, security scanning, and UI verification.
 
 ---
 
 ## Architecture
 
-The system operates across four primary layers:
-1. **Ingestion Layer**: Pulls data from the FastF1 library. Ingested raw telemetry data is cached locally to speed up subsequent requests. A task scheduler can optionally trigger periodic updates.
-2. **Processing Pipeline**: Standardizes timestamps, normalizes telemetry fields, filters out malformed payloads, and converts data into validated Pydantic data models.
-3. **Storage Layer**: A thread-safe, in-memory repository protected by an asynchronous lock to prevent concurrent write collisions.
-4. **API and WebSocket Layer**: Exposes endpoints for client queries, manages real-time socket subscriptions, handles heartbeats (ping/pong), and routes targeted live updates to subscribers.
+```
+                    +-----------------------------+
+                    |        FastF1 Library       |
+                    +--------------+--------------+
+                                   |
+                                   | (Ingestion / Caching)
+                                   v
+                    +-----------------------------+
+                    |        FastAPI Backend      |
+                    |   (Historical REST APIs)    |
+                    +-------+-------------+-------+
+                            |             |
+                 (REST API) |             | (WebSockets / ws://)
+                            v             v
+                    +-------+-------------+-------+
+                    |        React Frontend       |
+                    | (useTelemetry & useWebSocket) |
+                    +--------------+--------------+
+                                   |
+                                   v
+                    +--------------+--------------+
+                    |     Interactive Dashboard   |
+                    | (Recharts, Stats, Dark Mode)|
+                    +-----------------------------+
+```
 
-```
-                                +-------------------+
-                                |   FastF1 Library  |
-                                +---------+---------+
-                                          |
-                                          | (Downloads telemetry & cache files)
-                                          v
-                                +---------+---------+
-                                |    FastF1Client   |
-                                +---------+---------+
-                                          |
-                                          | (Extracts raw record dicts)
-                                          v
-                                +---------+---------+
-                                | Processing Pipe  |
-                                +----+----------+---+
-                                     |          |
-                    (Saves sessions) |          | (Broadcasts active data)
-                                     v          v
-                             +-------+---+  +---+-------+
-                             | Telemetry |  |  Conn.    |
-                             |   Store   |  |  Manager  |
-                             +-------+---+  +---+-------+
-                                     ^          ^
-                                     |          |
-                                (REST API)  (WebSockets)
-                                     |          |
-                                     v          v
-                                +----+----------+---+
-                                |      FastAPI      |
-                                +---------+---------+
-                                          ^
-                                          | (HTTP & WS connections)
-                                          v
-                                +---------+---------+
-                                |  Client / UI App  |
-                                +-------------------+
-```
+### AI Pipeline Handoff Flow
+The project is built and audited using an autonomous AI pipeline loop:
+1. **Planner (`writing-plans`)**: Validates specifications and generates structural step-by-step implementations.
+2. **Builder**: Writes optimized, modular React hooks, API handlers, and design system styling.
+3. **QA Loop (`ui-ux-pro-max`)**: Enforces touch target accessibility standards (>=44px), rendering benchmarks, and cleans up component re-renders.
+4. **Security Pass (`SecureCoder`)**: Detects XSS vectors, sanitizes session select inputs, rejects raw binary sockets, and manages race condition request flags.
 
 ---
 
@@ -58,28 +56,32 @@ The system operates across four primary layers:
 
 ```
 f1-telemetry/
-├── backend/
+├── .agents/                    # AI agent pipeline logs, prompts, and custom skills
+├── backend/                    # FastAPI python backend application
 │   ├── api/
-│   │   ├── __init__.py
-│   │   ├── dependencies.py      # Dependency injection factories (store, client, WS manager)
-│   │   ├── routes.py            # REST API endpoints (/sessions, /telemetry, /telemetry/metadata)
-│   │   └── websocket.py         # WebSocket route handler and client filter loops
+│   │   ├── routes.py           # REST endpoints (/sessions, /telemetry, /telemetry/metadata)
+│   │   └── websocket.py        # WebSocket server routes and handler loops
 │   ├── ingestion/
-│   │   ├── __init__.py
-│   │   ├── fastf1_client.py     # FastF1 client wrapping session loads and schedule lists
-│   │   └── scheduler.py         # Ingestion scheduler using APScheduler AsyncIOScheduler
+│   │   └── fastf1_client.py    # FastF1 client wrapping data loads and cache management
 │   ├── models/
-│   │   ├── __init__.py
-│   │   └── schemas.py           # Pydantic data structures and validation schemas
+│   │   └── schemas.py          # Pydantic validation schemas
 │   ├── services/
-│   │   ├── __init__.py
-│   │   ├── processing.py        # Telemetry ingestion, cleansing, and broadcast pipeline
-│   │   ├── telemetry_store.py   # Thread-safe in-memory store utilizing asyncio.Lock
-│   │   └── ws_manager.py        # Connection manager with filter-matching capabilities
-│   ├── config.py                # Environment configuration using pydantic-settings
-│   ├── main.py                  # Main application entry point, middleware, and CORS configuration
-│   └── __init__.py
-├── requirements.txt             # Python application dependencies
+│   │   ├── telemetry_store.py  # Thread-safe in-memory data store with asyncio.Lock
+│   │   └── ws_manager.py       # Client websocket subscription and dispatch manager
+│   └── main.py                 # FastAPI application initialization & security middleware
+├── frontend/                   # React frontend application
+│   ├── src/
+│   │   ├── components/         # Reusable UI widgets (Header, ConnectionStatus, StatsCard, etc.)
+│   │   ├── context/            # Global theme context (Dark/Light mode)
+│   │   ├── hooks/              # Custom data hooks (useTelemetry, useWebSocket, useTheme)
+│   │   ├── pages/              # Responsive Dashboard layouts and styling
+│   │   ├── services/           # REST API client wrapper using standard fetch
+│   │   ├── App.jsx             # React entry point with Theme providers
+│   │   └── main.jsx            # React virtual DOM mount
+│   ├── package.json            # Frontend NPM package requirements
+│   ├── vite.config.js          # Vite config with dev-server proxy definitions
+│   └── index.html              # HTML shell with viewport and font link definitions
+├── requirements.txt             # Python backend dependencies
 └── README.md                    # Project documentation
 ```
 
@@ -87,127 +89,99 @@ f1-telemetry/
 
 ## How It Works
 
-1. **Service Initialization**: On startup, the FastAPI app setup initializes the singletons for the `TelemetryStore`, `ConnectionManager`, and `FastF1Client` within the application lifespan. The ingestion scheduler is triggered if enabled.
-2. **On-Demand Data Fetching**: When a user queries historical telemetry for a season and round that is not yet loaded, the system automatically calls `FastF1Client` to fetch, extract, and cache the session's data from the FastF1 backend.
-3. **Data Processing Pipeline**: The raw records are parsed, timestamps are converted into seconds, numeric fields are coerced safely, and Pydantic parses them into the strict `TelemetryData` schema.
-4. **Concurrency-Safe Storage**: Processed data is saved inside the lock-protected `TelemetryStore`. This ensures that even under heavy API traffic, writes do not interfere with concurrent reads.
-5. **Real-Time Distribution**: The connection manager tracks active WebSocket clients. As raw telemetry batches are ingested, the system broadcasts the latest records to subscribers whose registered subscription filters (such as `lap` numbers) match the incoming data.
+1. **System Startup**: The FastAPI backend is launched and initiates singletons for the telemetry store, connection managers, and local cache.
+2. **REST Loading**: The React dashboard requests ingested sessions from `/api/v1/sessions`. When a session is selected, `useTelemetry` loads the historical points via `/api/v1/telemetry`.
+3. **WebSocket Connection**: The frontend establishes a WebSocket connection to `ws://localhost:8000/ws/telemetry`. The client registers dynamic filters (e.g. current year, round, session type) by broadcasting filtering updates back to the backend.
+4. **Data Normalization & Streaming**: Telemetry updates stream to the frontend in JSON format. The custom hook `useWebSocket` validates length constraints and message payloads, feeding validated telemetry data into `useTelemetry`'s rolling buffer.
+5. **UI Rendering**: The React frontend uses downsampled buffers and `useMemo` states to feed charts efficiently. It disables animations during active streaming and memoizes elements (`StatsCard`, `GearIndicator`) to minimize garbage collection cycles.
 
 ---
 
 ## Tech Stack
 
-* **Language**: Python 3.8+
-* **Backend Framework**: FastAPI (>=0.111.0)
-* **Web Server**: Uvicorn (>=0.30.0)
-* **Data Sources**: FastF1 (>=3.3.0)
-* **Data Manipulation**: Pandas (>=2.2.0), NumPy (>=1.26.0)
-* **Validation & Configuration**: Pydantic (>=2.7.0), Pydantic Settings (>=2.3.0)
-* **Scheduling**: APScheduler (>=3.10.0)
+### Backend
+- **Python 3.9+**
+- **FastAPI** / **Uvicorn** (Asynchronous REST & WebSocket routing)
+- **FastF1** (Telemetry parsing engine)
+- **Pandas** & **NumPy** (Data cleaning & serialization)
+- **Pydantic v2** (Strict schema validation)
+
+### Frontend
+- **React 18+** & **Vite** (Build toolchain)
+- **Recharts** (Performant Canvas/SVG data visualization)
+- **Vanilla CSS Custom Properties** (Sleek light & dark variables)
+- **Lucide Icons / SVG** (Crisp vector graphics with no external layout jitter)
 
 ---
 
 ## Features
 
-* **Dynamic Telemetry Ingestion**: Seamless downloading of race weekend telemetry with automatic caching in a local directory (`.fastf1_cache`) to speed up consecutive requests.
-* **Granular Historical Queries**: A rich REST query endpoint `/api/v1/telemetry` supporting filtering by:
-  * `year`, `round`, and `session_type` (e.g., FP1, Q, R)
-  * Specific `lap`
-  * Time-window range (`start_time`, `end_time`)
-  * Field selection (projection of specific fields like `speed`, `rpm`, `throttle`, or `brake` to minimize bandwidth)
-* **Real-Time Streaming**: A WebSocket endpoint at `/ws/telemetry` supporting:
-  * Live telemetry broadcasts.
-  * Real-time subscription adjustments (e.g., subscribing to a specific lap mid-session).
-  * Heartbeat checks (Ping/Pong) to keep connections active.
-* **Aggregate Summaries**: In-memory computation of session summary stats, including average speed, max RPM, min/max speed, and brake application percentages.
-* **Security Hardened**: Injected headers including `X-Content-Type-Options`, `X-Frame-Options`, `Referrer-Policy`, and strict `Content-Security-Policy` limits.
+- **Real-Time Telemetry Streaming**: High-frequency telemetry updates distributed seamlessly over WebSockets.
+- **Deduplicated Request Loading**: Stale or slow REST queries are automatically discarded when switching session dropdowns, preventing concurrent UI updates.
+- **Accessible Design Target Sizing**: Interactive touch areas (dropdowns, theme controls, dismiss actions) strictly respect the `>= 44px` mobile specification guidelines.
+- **Robust Input Sanitization**: Deep validation parameters on both backend (FastAPI Pydantic) and frontend (regex checks, JSON size limits, alphanumeric filtering) prevent injection attacks.
+- **Dynamic CSS variables**: Light and Dark mode variables support smooth, flickerless switching.
 
 ---
 
 ## Getting Started
 
-### Prerequisites
+### Backend Setup
 
-* Python 3.9 or higher installed on your machine.
-
-### Installation
-
-1. Clone the repository and navigate to the project root:
+1. Navigate to the backend directory and set up a virtual environment:
    ```bash
-   git clone <repository-url>
-   cd f1-telemetry
-   ```
-
-2. Create and activate a virtual environment:
-   ```bash
+   cd backend
    python3 -m venv .venv
    source .venv/bin/activate
    ```
-
-3. Install the required dependencies:
+2. Install python packages:
    ```bash
-   pip install -r requirements.txt
+   pip install -r ../requirements.txt
+   ```
+3. Start the FastAPI development server:
+   ```bash
+   uvicorn main:app --host 127.0.0.1 --port 8000 --reload
    ```
 
-### Configuration
+### Frontend Setup
 
-The application is configured using environment variables prefixed with `F1_`. 
-
-| Environment Variable | Type | Default | Description |
-| :--- | :--- | :--- | :--- |
-| `F1_APP_TITLE` | String | `F1 Telemetry Platform` | Name of the FastAPI application |
-| `F1_APP_VERSION` | String | `0.1.0` | Application version number |
-| `F1_LOG_LEVEL` | String | `INFO` | Log output level (DEBUG, INFO, WARNING, ERROR) |
-| `F1_ALLOWED_ORIGINS` | List | `["http://localhost:3000"]` | Allowed CORS origins (JSON array string format) |
-| `F1_INGESTION_INTERVAL_SECONDS` | Integer | `300` | Ingestion scheduler loop time |
-| `F1_FASTF1_CACHE_DIR` | String | `.fastf1_cache` | Path where FastF1 caches raw data |
-| `F1_ENABLE_SCHEDULED_INGESTION` | Boolean | `False` | Toggle the background APScheduler task loop |
-
-Example of overriding configuration:
-```bash
-export F1_LOG_LEVEL="DEBUG"
-export F1_ENABLE_SCHEDULED_INGESTION="True"
-```
-
-### Running the Server
-
-Start the Uvicorn development server:
-```bash
-uvicorn backend.main:app --host 127.0.0.1 --reload
-```
-
-Once running, you can access:
-* **Interactive API Documentation (Swagger)**: [http://127.0.0.1:8000/docs](http://127.0.0.1:8000/docs)
-* **Alternative API Documentation (ReDoc)**: [http://127.0.0.1:8000/redoc](http://127.0.0.1:8000/redoc)
-* **Application Health Probe**: [http://127.0.0.1:8000/health](http://127.0.0.1:8000/health)
+1. Navigate to the frontend directory:
+   ```bash
+   cd frontend
+   npm install
+   ```
+2. Start the Vite hot-reloading development server:
+   ```bash
+   npm run dev
+   ```
+3. Open your browser and navigate to [http://localhost:3000](http://localhost:3000). The dev-server automatically proxies REST and WebSocket traffic to the FastAPI backend.
 
 ---
 
 ## Future Improvements
 
-* **Persistent Storage Adapter**: Replace the volatile in-memory storage dictionary with a persistent PostgreSQL (using TimescaleDB) or Redis backend.
-* **Authentication & Authorization**: Integrate JWT authentication or API key validation for API routes and WebSocket handshakes.
-* **Granular Field-Level WebSocket Filtering**: Perform data projection at the connection manager level to broadcast only the fields requested by the subscriber.
-* **Live Ingestion Feed**: Upgrade the scheduler to pull from F1 Live Timing feeds during active Grand Prix weekends.
+- **Database Persistence**: Swap the transient in-memory store for a high-performance database instance (such as TimescaleDB or Redis).
+- **Authentication**: Set up JWT authentication guards for WebSocket handshakes and stateful REST actions.
+- **Live timing feed**: Adapt the FastF1Client connection layer to stream directly from active Formula 1 live timing feeds during race weekends.
 
 ---
 
 ## Contributing
 
 1. Fork the project.
-2. Create your feature branch (`git checkout -b feature/AmazingFeature`).
-3. Commit your changes (`git commit -m 'Add some AmazingFeature'`).
-4. Push to the branch (`git push origin feature/AmazingFeature`).
+2. Create your feature branch (`git checkout -b feature/amazing-feature`).
+3. Commit your changes (`git commit -m 'feat: add amazing feature'`).
+4. Push to the branch (`git push origin feature/amazing-feature`).
 5. Open a Pull Request.
 
 ---
 
 ## License
 
-This project is licensed under the MIT License. See the `LICENSE` file for details.
+This project is licensed under the MIT License.
 
 ---
 
 ## Key Insight / Summary
 
-The **F1 Telemetry Platform** bridges raw timing telemetry and real-time visual client layers. By combining FastAPI's lightweight asynchronous ASGI execution with Pandas' data manipulation capabilities, it provides a clean, extendable foundation for building rich motorsport analysis and dashboard applications.
+The **F1 Telemetry Platform** combines high-frequency async networking with a streamlined React UI to visualize motorsport metrics. Engineered with strict design guidelines, performance constraints, and secure boundaries, the application offers an accessible, production-ready foundation for professional telemetry analysis.
