@@ -1,0 +1,78 @@
+.stats-card {
+  padding: 20px;
+  position: relative;
+  overflow: hidden;
+  animation: fadeIn 0.3s ease-out;
+}
+
+.stats-card__header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 10px;
+}
+
+.stats-card__icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  border-radius: var(--radius-sm);
+  background: color-mix(in srgb, var(--stat-color) 15%, transparent);
+  color: var(--stat-color);
+}
+
+.stats-card__icon svg {
+  width: 16px;
+  height: 16px;
+}
+
+.stats-card__label {
+  font-size: 0.8rem;
+  font-weight: 600;
+  color: var(--color-text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+}
+
+.stats-card__value-row {
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
+}
+
+.stats-card__value {
+  font-size: 2rem;
+  font-weight: 700;
+  color: var(--color-text-primary);
+  line-height: 1;
+  font-variant-numeric: tabular-nums;
+}
+
+.stats-card__unit {
+  font-size: 0.8rem;
+  font-weight: 500;
+  color: var(--color-text-muted);
+}
+
+.stats-card__accent-line {
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  height: 3px;
+  background: var(--stat-color);
+  opacity: 0.6;
+  transition: opacity var(--transition-fast);
+}
+
+.stats-card:hover .stats-card__accent-line {
+  opacity: 1;
+}
+
+@media (max-width: 480px) {
+  .stats-card__value {
+    font-size: 1.5rem;
+  }
+}

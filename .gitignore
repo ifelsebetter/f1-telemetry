@@ -7,6 +7,8 @@
 *.pfx
 secrets/
 credentials.json
+*.secret
+*.token
 
 # Python
 __pycache__/
@@ -14,10 +16,7 @@ __pycache__/
 *$py.class
 *.so
 .Python
-build/
 develop-eggs/
-dist/
-downloads/
 eggs/
 .eggs/
 lib/
@@ -47,8 +46,6 @@ nosetests.xml
 pylintrc
 .dmypy.json
 dmypy.json
-
-# FastF1 Data Cache
 .fastf1_cache/
 
 # Node / Frontend
@@ -64,10 +61,8 @@ out/
 .parcel-cache/
 .docusaurus/
 .svelte-kit/
-dist/
-build/
 
-# Logs & Temp Files
+# Logs & Temp
 *.log
 logs/
 tmp/
@@ -77,7 +72,7 @@ temp/
 *.swp
 *~
 
-# OS-specific Files
+# OS Files
 .DS_Store
 .DS_Store?
 ._*
@@ -86,7 +81,7 @@ temp/
 ehthumbs.db
 Thumbs.db
 
-# IDE / Editor Files
+# IDE / Editor
 .vscode/
 .idea/
 *.suo
@@ -94,3 +89,21 @@ Thumbs.db
 *.njsproj
 *.sln
 *.sw?
+.project
+.classpath
+.settings/
+
+# Build & Artifacts
+dist/
+build/
+dist-ssr/
+*.local
+*.out
+compiled/
+
+# AI & Project-Specific
+.agents
+artifacts/
+scratch/
+experiments/
+model_outputs/

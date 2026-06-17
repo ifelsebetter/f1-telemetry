@@ -1,0 +1,45 @@
+.connection-status {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 14px;
+  border-radius: 20px;
+  font-size: 0.8rem;
+  font-weight: 500;
+  background: var(--color-bg-card);
+  border: 1px solid var(--color-border);
+  transition: background-color var(--transition-normal),
+              border-color var(--transition-normal);
+}
+
+.connection-status__dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+
+.connection-status--connected .connection-status__dot {
+  background-color: var(--color-success);
+  box-shadow: 0 0 6px var(--color-success);
+  animation: pulse 2s ease-in-out infinite;
+}
+
+.connection-status--connecting .connection-status__dot {
+  background-color: var(--color-warning);
+  box-shadow: 0 0 6px var(--color-warning);
+  animation: pulse 1s ease-in-out infinite;
+}
+
+.connection-status--disconnected .connection-status__dot {
+  background-color: var(--color-text-muted);
+}
+
+.connection-status--error .connection-status__dot {
+  background-color: var(--color-danger);
+  box-shadow: 0 0 6px var(--color-danger);
+}
+
+.connection-status__label {
+  color: var(--color-text-secondary);
+}

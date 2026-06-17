@@ -1,0 +1,53 @@
+.telemetry-chart {
+  display: flex;
+  flex-direction: column;
+  padding: 20px;
+  animation: fadeIn 0.3s ease-out;
+}
+
+.telemetry-chart__header {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  margin-bottom: 16px;
+}
+
+.telemetry-chart__title {
+  font-size: 0.95rem;
+  font-weight: 600;
+  color: var(--color-text-primary);
+}
+
+.telemetry-chart__unit {
+  font-size: 0.75rem;
+  font-weight: 500;
+  color: var(--color-text-muted);
+  padding: 2px 8px;
+  background: var(--color-border);
+  border-radius: var(--radius-sm);
+}
+
+.telemetry-chart__body {
+  flex: 1;
+  min-height: 220px;
+}
+
+.telemetry-chart__empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  height: 220px;
+  gap: 8px;
+  color: var(--color-text-muted);
+}
+
+.telemetry-chart__empty p {
+  font-size: 0.95rem;
+  font-weight: 500;
+  color: var(--color-text-secondary);
+}
+
+.telemetry-chart__empty span {
+  font-size: 0.8rem;
+}
