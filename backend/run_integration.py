@@ -71,11 +71,16 @@ async def test_websocket_endpoint():
         print(f"Sending: {ping_msg}")
         await ws.send(json.dumps(ping_msg))
         
-        # Wait for pong response
-        response = await ws.recv()
-        data = json.loads(response)
-        print(f"Received: {data}")
-        assert data.get("type") == "pong", "Expected type 'pong'"
+        # Wait for pong response (skipping stream updates)
+        got_pong = False
+        for _ in range(50):
+            response = await ws.recv()
+            data = json.loads(response)
+            if data.get("type") == "pong":
+                got_pong = True
+                print("Received pong response.")
+                break
+        assert got_pong, "Expected type 'pong'"
         
         # Send filter subscription update including driver filter
         sub_msg = {
@@ -88,10 +93,15 @@ async def test_websocket_endpoint():
         await ws.send(json.dumps(sub_msg))
         
         # Wait for filter update confirmation
-        response = await ws.recv()
-        data = json.loads(response)
-        print(f"Received: {data}")
-        assert data.get("type") == "filters_updated", "Expected filters_updated confirmation"
+        got_filters = False
+        for _ in range(50):
+            response = await ws.recv()
+            data = json.loads(response)
+            if data.get("type") == "filters_updated":
+                got_filters = True
+                print("Received filters_updated confirmation.")
+                break
+        assert got_filters, "Expected filters_updated confirmation"
         
         print("WebSocket tests passed successfully!\n")
 

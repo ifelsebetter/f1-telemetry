@@ -53,7 +53,8 @@ export function useWebSocket(url) {
   const sendMessage = useCallback((data) => {
     const ws = wsRef.current;
     if (ws && ws.readyState === WebSocket.OPEN) {
-      ws.send(JSON.stringify(data));
+      const payload = typeof data === 'string' ? data : JSON.stringify(data);
+      ws.send(payload);
     }
   }, []);
 

@@ -59,24 +59,24 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
 
     logger.info("Services initialised")
 
-    # Pre-populate with example telemetry data
+    # Pre-populate with authentic FastF1 telemetry data
     try:
-        from backend.api.routes import load_example_data
         from backend.services.processing import process_raw_batch
-        example_records = load_example_data()
-        if example_records:
-            processed = process_raw_batch(example_records)
+        records, drv, rnd, ev = app.state.fastf1_client.fetch_session_telemetry(2023, 1, "Q", "VER")
+        if records:
+            processed = process_raw_batch(records)
             await store.store_telemetry(
                 year=2023,
-                round_number=1,
+                round_number=rnd or 1,
                 session_type="Q",
-                driver="VER",
+                driver=drv or "VER",
                 data=processed,
-                event_name="Bahrain Grand Prix",
+                event_name=ev or "Bahrain Grand Prix",
+                circuit_id="bahrain",
             )
-            logger.info("Pre-populated store with example telemetry data")
+            logger.info("Pre-populated store with authentic FastF1 telemetry (%d records)", len(processed))
     except Exception as e:
-        logger.error("Failed to pre-populate store with example data: %s", e)
+        logger.warning("Startup FastF1 preload skipped: %s", e)
 
     start_scheduler()
 

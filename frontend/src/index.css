@@ -18,6 +18,8 @@
   --color-bg-secondary: #1E293B;
   --color-bg-card: #1E293B;
   --color-bg-card-hover: #253349;
+  --color-surface: #1E293B;
+  --color-canvas-bg: #090E1A;
   --color-text-primary: #F1F5F9;
   --color-text-secondary: #94A3B8;
   --color-text-muted: #64748B;
@@ -59,6 +61,8 @@
   --color-bg-secondary: #F1F5F9;
   --color-bg-card: #FFFFFF;
   --color-bg-card-hover: #F8FAFC;
+  --color-surface: #FFFFFF;
+  --color-canvas-bg: #FFFFFF;
   --color-text-primary: #0F172A;
   --color-text-secondary: #64748B;
   --color-text-muted: #94A3B8;

@@ -58,9 +58,19 @@ export async function fetchSessions() {
   return request('/api/v1/sessions');
 }
 
+/** Fetch available F1 championship circuits. */
+export async function fetchCircuits() {
+  return request('/api/v1/circuits');
+}
+
+/** Fetch circuit details with waypoints and corners. */
+export async function fetchCircuit(circuitId) {
+  return request(`/api/v1/circuits/${encodeURIComponent(circuitId)}`);
+}
+
 /**
  * Fetch telemetry data for a specific session.
- * @param {{ year: number, round: number, session_type: string, lap?: number, fields?: string }} params
+ * @param {{ year: number, round?: number, race?: string, session_type: string, driver?: string, drivers?: string[], lap?: number, fields?: string }} params
  */
 export async function fetchTelemetry(params) {
   const searchParams = new URLSearchParams();
@@ -84,6 +94,12 @@ export async function fetchTelemetry(params) {
     searchParams.set('driver', String(params.driver).trim().toUpperCase());
   }
 
+  if (Array.isArray(params.drivers) && params.drivers.length > 0) {
+    searchParams.set('drivers', params.drivers.join(','));
+  } else if (typeof params.drivers === 'string' && params.drivers.trim().length > 0) {
+    searchParams.set('drivers', params.drivers.trim());
+  }
+
   if (params.lap != null) {
     const lap = Number(params.lap);
     if (Number.isFinite(lap) && lap >= 1) {
@@ -91,7 +107,6 @@ export async function fetchTelemetry(params) {
     }
   }
   if (typeof params.fields === 'string' && params.fields.length > 0) {
-    // Sanitise field names to alphanumeric + commas only
     const sanitised = params.fields.replace(/[^A-Za-z0-9,_]/g, '');
     if (sanitised) {
       searchParams.set('fields', sanitised);
@@ -120,5 +135,7 @@ export function getWebSocketUrl() {
     return import.meta.env.VITE_WS_URL;
   }
   const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
-  return `${protocol}//${window.location.host}/ws/telemetry`;
+  const host = window.location.host;
+  return `${protocol}//${host}/ws/telemetry`;
 }
+

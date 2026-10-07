@@ -46,6 +46,8 @@ class TelemetryStore:
         driver: str,
         data: list[TelemetryData],
         event_name: str = "",
+        circuit_id: str = "bahrain",
+        drivers: list[str] | None = None,
     ) -> None:
         """Insert or replace telemetry for a session and driver."""
         driver_upper = driver.upper()
@@ -58,6 +60,8 @@ class TelemetryStore:
                 session_type=session_type,
                 event_name=event_name,
                 driver=driver_upper,
+                circuit_id=circuit_id,
+                drivers=drivers or [driver_upper],
             )
         logger.info(
             "Stored %d records for session %s",
@@ -82,6 +86,7 @@ class TelemetryStore:
         records: list[TelemetryData] = []
         resolved_driver = driver_val or ""
         event_name = ""
+        circuit_id = "bahrain"
         async with self._lock:
             if driver_val:
                 session_key = (year, round_val, s_type, driver_val)
@@ -90,6 +95,7 @@ class TelemetryStore:
                 if session_key in self._session_info:
                     event_name = self._session_info[session_key].event_name
                     resolved_driver = self._session_info[session_key].driver
+                    circuit_id = self._session_info[session_key].circuit_id
             else:
                 for k, val in self._data.items():
                     if k[0] == year and k[1] == round_val and k[2] == s_type:
@@ -97,6 +103,7 @@ class TelemetryStore:
                         if k in self._session_info:
                             event_name = self._session_info[k].event_name
                             resolved_driver = self._session_info[k].driver
+                            circuit_id = self._session_info[k].circuit_id
                         break
 
         # --- lap filter ---
@@ -138,6 +145,7 @@ class TelemetryStore:
             session_type=s_type,
             event_name=event_name,
             driver=resolved_driver,
+            circuit_id=circuit_id,
         )
 
     async def list_sessions(self) -> list[SessionInfo]:

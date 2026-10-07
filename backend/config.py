@@ -18,8 +18,13 @@ class Settings(BaseSettings):
     log_level: str = "INFO"
 
     # -- CORS --
-    # TODO(security): For production, restrict to the exact frontend origin.
-    allowed_origins: list[str] = ["http://localhost:3000"]
+    allowed_origins: list[str] = [
+        "http://localhost:3000",
+        "http://127.0.0.1:3000",
+        "http://localhost:5173",
+        "http://127.0.0.1:5173",
+        "*"
+    ]
 
     # -- Ingestion --
     ingestion_interval_seconds: int = 300
