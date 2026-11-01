@@ -149,6 +149,50 @@ docker compose -f compose.yaml -f compose.prod.yaml down
 
 ---
 
+## Backend REST API Documentation
+
+All REST endpoints are versioned under `/api/v1` (except `/health`):
+
+| Method | Path | Query Parameters | Description |
+| :--- | :--- | :--- | :--- |
+| `GET` | `/health` | — | Returns `{"status": "ok"}` for container and load-balancer liveness checks. |
+| `GET` | `/api/v1/circuits` | — | Lists all registered FIA championship circuits with length, lap count, and turn count. |
+| `GET` | `/api/v1/circuits/{circuit_id}` | — | Returns full 2D GPS track waypoints (`x`, `y`, `sector`, `drs`), corner markers, and DRS zones for a circuit (`bahrain`, `monaco`, `silverstone`, `spa`, `monza`, `suzuka`, `interlagos`). |
+| `GET` | `/api/v1/sessions` | — | Lists available preset and cached Grand Prix sessions (`year`, `round`, `session_type`, `event_name`, `circuit_id`, `drivers`). |
+| `GET` | `/api/v1/telemetry/metadata` | — | Returns field descriptors and units for all 18 raw and derived telemetry channels. |
+| `GET` | `/api/v1/telemetry` | `year` (1950–2099), `round` (≥1) or `race`, `session_type` (`R`,`Q`,`S`,`FP1`), `driver`, `drivers` (CSV, e.g. `VER,NOR`), `lap`, `start_time`, `end_time`, `fields` | Returns sanitized primary-driver `data`, statistical `summary`, and multi-driver comparison dictionary `drivers_data`. |
+
+---
+
+## WebSocket Streaming & Replay Protocol (`/ws/telemetry`)
+
+Clients connect to `ws://localhost:3000/ws/telemetry` (optional query params: `year`, `round`, `session_type`, `driver`, `circuit_id`). Each WebSocket client receives an isolated `ReplayEngine` instance.
+
+### Server-to-Client Messages
+- `session_metadata`: Initial session summary (`year`, `round`, `session_type`, `circuit_id`, `driver_results`, `total_laps`, `lap_duration`, `total_race_duration`).
+- `telemetry_update`: Sent at `20 Hz` during playback and immediately upon `seek`, `seek_lap`, or `switch_race`. Contains `payload` (primary driver `TelemetryData`), `multi_payload` (20-driver dictionary of `TelemetryData`), `current_lap`, `total_laps`, `race_time`, and `driver_results`.
+- `playback_status`: `{"type": "playback_status", "isPlaying": true|false}`.
+- `speed_status`: `{"type": "speed_status", "speed": 1.0}`.
+- `loading_status` / `race_switched` / `filters_updated` / `pong`: Control acknowledgements.
+
+### Client-to-Server Commands
+- `{"type": "play"}` / `{"type": "pause"}`: Resume or pause the per-client replay stream.
+- `{"type": "seek", "timestamp": 125.4}`: Seek to an arbitrary race timestamp (pushes an immediate `telemetry_update` frame even while paused).
+- `{"type": "seek_lap", "lap": 12}`: Jump directly to the start of a specific lap and recompute lap-indexed tyre wear.
+- `{"type": "set_speed", "speed": 5.0}`: Set replay speed multiplier (`0.1` to `60.0`).
+- `{"type": "switch_race", "year": 2023, "round": 6, "session_type": "R", "circuit_id": "monaco"}`: Dynamically switch the active Grand Prix session.
+- `{"type": "ping"}`: Heartbeat check (server replies with `{"type": "pong"}`).
+
+---
+
+## FastF1 Cache Configuration
+
+- **Persistent Volume**: FastF1 SQLite and HTTP responses are stored in `F1_FASTF1_CACHE_DIR` (default `.fastf1_cache/`), mounted into the backend container at `/app/.fastf1_cache`.
+- **In-Memory Thread-Safe FIFO Cache & Stampede Locking**: `FastF1Client` maintains a bounded process-local cache (`_MAX_CACHE_SIZE = 8`) protected by `_CACHE_LOCK` and per-session `_KEY_LOCKS` so concurrent requests for the same session share a single FastF1 load operation without cache stampedes.
+- **Offline Fallback**: If an uncached session is requested while offline, the replay engine gracefully falls back to the pre-warmed `2023 Round 1 (Bahrain)` cache.
+
+---
+
 ## Local Bare-Metal Setup (Without Docker)
 
 ### 1. Backend
@@ -187,13 +231,16 @@ Copy `.env.example` to `.env` to customize settings:
 ## Testing & Verification
 
 ```bash
-# 1. Run backend unit, REST, and WebSocket test suite
+# 1. Run backend unit, REST, concurrency, and WebSocket test suite (11 tests)
 PYTHONPATH=. pytest -v
 
-# 2. Build frontend production bundle
+# 2. Run frontend component, accessibility, and reduced-motion test suite (7 tests)
+cd frontend && npm test
+
+# 3. Build frontend production bundle
 cd frontend && npm run build
 
-# 3. Run end-to-end REST + WebSocket integration script (via frontend proxy on :3000)
+# 4. Run end-to-end REST + WebSocket integration script (via frontend proxy on :3000)
 python3 backend/run_integration.py
 ```
 
@@ -202,9 +249,16 @@ python3 backend/run_integration.py
 ## Troubleshooting
 
 - **First-time uncached Grand Prix session takes 10–20 seconds to load**:
-  Preset sessions (`2023` Bahrain, Monaco, Silverstone, Spa, Monza and `2024` Bahrain) are pre-cached in `.fastf1_cache/` and load rapidly. Loading a new custom round downloads telemetry from the official F1 timing archive and caches it in `.fastf1_cache/` for subsequent runs.
+  Preset sessions (`2023` Bahrain, Monaco, Silverstone, Spa, Monza) use `.fastf1_cache/` when cached. Loading an uncached custom round downloads telemetry from the official F1 timing archive and caches it in `.fastf1_cache/` for subsequent runs.
 - **Port `3000` or `8000` already in use**:
   Override `FRONTEND_PORT` or `BACKEND_PORT` in `.env` or inline:
   `FRONTEND_PORT=3001 BACKEND_PORT=8001 docker compose up --build -d`
 - **Permission denied on `.fastf1_cache`**:
   Ensure `.fastf1_cache` is owned by UID `1000` (`chown -R 1000:1000 .fastf1_cache`).
+
+---
+
+## Known Limitations
+
+- **Single-Worker Process-Local Cache**: `FastF1Client._SESSION_CACHE` and `_GRID_CACHE` are thread-safe within a single Uvicorn worker process (`--workers 1`). Horizontal multi-worker deployments should back session state with shared Redis or `diskcache`.
+- **Derived Physics Approximations**: FIA telemetry does not publicly broadcast raw steering rack angle, internal MGU-K harvest wattage, or 4-corner IR tyre surface sensors; these channels (`steer`, `ers_harvest`, `ers_soc`, `tyre_temp_*`, `tyre_wear`) are deterministically derived from FastF1 GPS trajectory curvature, longitudinal deceleration, velocity, and throttle/brake traces.
