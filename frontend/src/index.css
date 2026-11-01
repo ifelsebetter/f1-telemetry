@@ -19,19 +19,30 @@
   --color-bg-card: #1E293B;
   --color-bg-card-hover: #253349;
   --color-surface: #1E293B;
+  --color-surface-elevated: rgba(15, 23, 42, 0.92);
+  --color-header-bg: rgba(11, 17, 33, 0.94);
+  --color-panel-header: rgba(15, 23, 42, 0.85);
+  --color-input-bg: rgba(15, 23, 42, 0.85);
+  --color-chip-bg: rgba(15, 23, 42, 0.72);
   --color-canvas-bg: #090E1A;
   --color-text-primary: #F1F5F9;
   --color-text-secondary: #94A3B8;
   --color-text-muted: #64748B;
+  --color-text-tertiary: #475569;
   --color-accent: #D97706;
   --color-accent-secondary: #F59E0B;
   --color-brand: #6366F1;
   --color-border: rgba(255, 255, 255, 0.08);
-  --color-border-strong: rgba(255, 255, 255, 0.15);
+  --color-border-strong: rgba(255, 255, 255, 0.16);
   --color-success: #22C55E;
   --color-warning: #F59E0B;
   --color-danger: #EF4444;
   --color-overlay: rgba(0, 0, 0, 0.6);
+
+  /* Unified Sector Palette (S1=Cyan, S2=Amber, S3=Purple) */
+  --sector-1: #06B6D4;
+  --sector-2: #F59E0B;
+  --sector-3: #A855F7;
 
   /* Chart palette */
   --chart-speed: #3B82F6;
@@ -39,6 +50,9 @@
   --chart-brake: #EF4444;
   --chart-rpm: #A855F7;
   --chart-gear: #F59E0B;
+
+  /* Typography */
+  --font-mono: 'JetBrains Mono', 'Fira Code', 'Cascadia Code', monospace;
 
   /* Shadows */
   --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.4);
@@ -57,24 +71,34 @@
 
 /* --- Light Theme --- */
 [data-theme="light"] {
-  --color-bg-primary: #F8FAFC;
-  --color-bg-secondary: #F1F5F9;
+  --color-bg-primary: #F1F5F9;
+  --color-bg-secondary: #E2E8F0;
   --color-bg-card: #FFFFFF;
   --color-bg-card-hover: #F8FAFC;
   --color-surface: #FFFFFF;
+  --color-surface-elevated: rgba(255, 255, 255, 0.96);
+  --color-header-bg: rgba(255, 255, 255, 0.95);
+  --color-panel-header: #F8FAFC;
+  --color-input-bg: #F1F5F9;
+  --color-chip-bg: #F1F5F9;
   --color-canvas-bg: #FFFFFF;
   --color-text-primary: #0F172A;
-  --color-text-secondary: #64748B;
-  --color-text-muted: #94A3B8;
-  --color-accent: #D97706;
-  --color-accent-secondary: #F59E0B;
+  --color-text-secondary: #475569;
+  --color-text-muted: #64748B;
+  --color-text-tertiary: #94A3B8;
+  --color-accent: #B45309;
+  --color-accent-secondary: #D97706;
   --color-brand: #4F46E5;
-  --color-border: rgba(0, 0, 0, 0.08);
-  --color-border-strong: rgba(0, 0, 0, 0.15);
-  --color-success: #16A34A;
-  --color-warning: #D97706;
+  --color-border: rgba(15, 23, 42, 0.1);
+  --color-border-strong: rgba(15, 23, 42, 0.2);
+  --color-success: #15803D;
+  --color-warning: #B45309;
   --color-danger: #DC2626;
-  --color-overlay: rgba(0, 0, 0, 0.3);
+  --color-overlay: rgba(15, 23, 42, 0.35);
+
+  --sector-1: #0891B2;
+  --sector-2: #D97706;
+  --sector-3: #9333EA;
 
   --chart-speed: #2563EB;
   --chart-throttle: #16A34A;
@@ -82,9 +106,9 @@
   --chart-rpm: #9333EA;
   --chart-gear: #D97706;
 
-  --shadow-sm: 0 1px 3px rgba(0, 0, 0, 0.08);
-  --shadow-md: 0 4px 12px rgba(0, 0, 0, 0.1);
-  --shadow-lg: 0 8px 24px rgba(0, 0, 0, 0.12);
+  --shadow-sm: 0 1px 3px rgba(15, 23, 42, 0.06);
+  --shadow-md: 0 4px 12px rgba(15, 23, 42, 0.08);
+  --shadow-lg: 0 8px 24px rgba(15, 23, 42, 0.12);
   --shadow-glow-accent: 0 0 20px rgba(217, 119, 6, 0.08);
 }
 
@@ -93,6 +117,8 @@ html {
   font-size: 16px;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
+  overflow-x: hidden;
+  max-width: 100vw;
 }
 
 body {
@@ -103,6 +129,8 @@ body {
   background-color: var(--color-bg-primary);
   transition: background-color var(--transition-normal), color var(--transition-normal);
   min-height: 100dvh;
+  overflow-x: hidden;
+  max-width: 100vw;
 }
 
 #root {
@@ -122,8 +150,15 @@ h1 { font-size: 2rem; }
 h2 { font-size: 1.5rem; }
 h3 { font-size: 1.125rem; }
 
+.font-heading {
+  font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  font-weight: 800;
+  letter-spacing: 0.04em;
+}
+
 .font-mono {
-  font-family: 'JetBrains Mono', 'Fira Code', 'Cascadia Code', monospace;
+  font-family: var(--font-mono);
+  font-variant-numeric: tabular-nums;
 }
 
 /* --- Scrollbar (dark theme friendly) --- */

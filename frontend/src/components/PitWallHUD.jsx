@@ -3,10 +3,27 @@ import { getDriverProfile } from '../services/circuitData';
 import './PitWallHUD.css';
 
 function getTyreColor(temp) {
-  if (temp < 85) return '#38bdf8'; // Cool / Cold Blue
-  if (temp <= 104) return '#22c55e'; // Ideal Optimum Green
-  if (temp <= 112) return '#eab308'; // High Yellow
-  return '#ef4444'; // Overheated Red
+  if (temp < 85) return '#38bdf8';
+  if (temp <= 104) return '#22c55e';
+  if (temp <= 112) return '#eab308';
+  return '#ef4444';
+}
+
+function getSectorBadge(sectorIndex, activeSector, ghostDelta) {
+  if (sectorIndex > activeSector) {
+    return { label: 'PENDING', cls: 'pending-sector', active: false };
+  }
+  if (sectorIndex === activeSector) {
+    if (ghostDelta <= -0.05) return { label: 'PURPLE', cls: 'purple-sector', active: true };
+    if (ghostDelta <= 0.12) return { label: 'GREEN', cls: 'green-sector', active: true };
+    return { label: 'YELLOW', cls: 'yellow-sector', active: true };
+  }
+  // Completed sector
+  const offset = sectorIndex === 1 ? -0.04 : 0.03;
+  const effDelta = ghostDelta + offset;
+  if (effDelta <= -0.03) return { label: 'PURPLE', cls: 'purple-sector', active: false };
+  if (effDelta <= 0.15) return { label: 'GREEN', cls: 'green-sector', active: false };
+  return { label: 'YELLOW', cls: 'yellow-sector', active: false };
 }
 
 function PitWallHUD({
@@ -17,12 +34,9 @@ function PitWallHUD({
 }) {
   const p = currentPoint || {};
 
-  const flag = p.flag || 'GREEN';
-  const sc = p.safety_car || 'NONE';
-  const drs = Boolean(p.drs);
   const ersSoc = p.ers_soc ?? 95.0;
   const ersHarvest = p.ers_harvest ?? 0.0;
-  const ghostDelta = p.delta_to_ghost ?? -0.142;
+  const ghostDelta = p.delta_to_ghost ?? 0.0;
   const compound = p.tyre_compound || 'SOFT';
   const tyreWear = p.tyre_wear ?? 8.5;
   const speed = Math.round(p.speed ?? 0);
@@ -33,6 +47,7 @@ function PitWallHUD({
   const gear = p.gear ?? 0;
   const throttle = Math.round(p.throttle ?? 0);
   const brake = Math.round(p.brake ?? 0);
+  const activeSector = p.sector ?? 1;
 
   const tempFL = p.tyre_temp_fl ?? 94;
   const tempFR = p.tyre_temp_fr ?? 96;
@@ -46,15 +61,23 @@ function PitWallHUD({
 
   const primaryProf = getDriverProfile(primaryDriver);
 
-  // Secondary comparison car for head-to-head telemetry
-  const compCode = selectedDrivers.find((d) => d !== primaryDriver);
-  const compPoint = compCode ? multiPoints[compCode] : null;
-  const compProf = compCode ? getDriverProfile(compCode) : null;
+  // All selected comparison rivals
+  const rivals = selectedDrivers
+    .filter((d) => d !== primaryDriver && multiPoints[d])
+    .map((code) => ({
+      code,
+      prof: getDriverProfile(code),
+      pt: multiPoints[code],
+    }));
 
   // Rev lights calculation (15 shift lights)
   const maxRpm = 13000;
   const rpmPercent = Math.min(100, Math.max(0, ((rpm - 4000) / (maxRpm - 4000)) * 100));
   const activeLeds = Math.round((rpmPercent / 100) * 15);
+
+  const s1Badge = getSectorBadge(1, activeSector, ghostDelta);
+  const s2Badge = getSectorBadge(2, activeSector, ghostDelta);
+  const s3Badge = getSectorBadge(3, activeSector, ghostDelta);
 
   return (
     <div className="pit-wall-hud card" id="pit-wall-hud">
@@ -96,13 +119,13 @@ function PitWallHUD({
           <div className="speed-readout font-mono">
             <span className="speed-val">{speed}</span>
             <span className="speed-unit">KM/H</span>
-            <span className="speed-sub" style={{ fontSize: '9px', color: '#94a3b8' }}>{liveSpeedMs} M/S</span>
+            <span className="speed-sub">{liveSpeedMs} M/S</span>
           </div>
 
-          <div className="speed-eta-badge font-mono" style={{ display: 'flex', flexDirection: 'column', padding: '4px 8px', background: 'rgba(15, 23, 42, 0.6)', border: '1px solid rgba(255, 255, 255, 0.08)', borderRadius: '6px' }}>
-            <span style={{ fontSize: '8px', color: '#64748b', fontWeight: 700 }}>LAP ETA</span>
-            <span style={{ fontSize: '13px', color: '#f59e0b', fontWeight: 800 }}>{liveEta}</span>
-            <span style={{ fontSize: '9px', color: '#38bdf8' }}>{liveDistance}</span>
+          <div className="speed-eta-badge font-mono">
+            <span className="eta-badge__label">LAP ETA</span>
+            <span className="eta-badge__val">{liveEta}</span>
+            <span className="eta-badge__dist">{liveDistance}</span>
           </div>
 
           <div className="pedals-display">
@@ -129,30 +152,33 @@ function PitWallHUD({
           </div>
         </div>
 
-        {/* Head-to-Head Comparison Delta */}
-        {compPoint && compProf && (
+        {/* Multi-Driver Comparison Delta */}
+        {rivals.length > 0 && (
           <div className="cockpit__vs-module">
-            <span className="vs-badge font-mono">DUEL DELTA</span>
-            <div className="vs-comparison font-mono">
-              <div className="vs-driver" style={{ color: primaryProf.color }}>
-                <span>{primaryDriver}</span>
-                <strong>{speed} km/h</strong>
-              </div>
-              <span className="vs-sep">vs</span>
-              <div className="vs-driver" style={{ color: compProf.color }}>
-                <span>{compCode}</span>
-                <strong>{Math.round(compPoint.speed)} km/h</strong>
-              </div>
-            </div>
-            <span
-              className={`vs-delta font-mono ${
-                speed >= compPoint.speed ? 'delta-ahead' : 'delta-behind'
-              }`}
-            >
-              {speed >= compPoint.speed
-                ? `+${(speed - compPoint.speed).toFixed(0)} km/h APEX ADVANTAGE`
-                : `-${(compPoint.speed - speed).toFixed(0)} km/h APEX DEFICIT`}
+            <span className="vs-badge font-mono">
+              MULTI-CAR DELTA VS {primaryDriver}
             </span>
+            <div className="vs-rivals-list font-mono">
+              {rivals.map(({ code, prof, pt }) => {
+                const rSpeed = Math.round(pt.speed ?? 0);
+                const diffKmh = speed - rSpeed;
+                const timeDiff = (pt.delta_to_ghost ?? 0) - ghostDelta;
+                return (
+                  <div key={code} className="vs-rival-row">
+                    <span className="vs-rival-code" style={{ color: prof.color }}>
+                      {code}
+                    </span>
+                    <span className="vs-rival-speed">{rSpeed}k (G{pt.gear ?? 0})</span>
+                    <span className={diffKmh >= 0 ? 'delta-ahead' : 'delta-behind'}>
+                      {diffKmh >= 0 ? `+${diffKmh}` : diffKmh} km/h
+                    </span>
+                    <span className="vs-rival-dt">
+                      {timeDiff >= 0 ? `+${timeDiff.toFixed(2)}s` : `${timeDiff.toFixed(2)}s`}
+                    </span>
+                  </div>
+                );
+              })}
+            </div>
           </div>
         )}
       </div>
@@ -212,8 +238,8 @@ function PitWallHUD({
           </div>
           <div className="tyre-temp-legend font-mono">
             <span className="leg-cool">&lt;85°C Cool</span>
-            <span className="leg-opt">90-104°C Opt</span>
-            <span className="leg-hot">&gt;110°C Hot</span>
+            <span className="leg-opt">85-104°C Opt</span>
+            <span className="leg-hot">&gt;105°C Hot</span>
           </div>
         </div>
 
@@ -221,7 +247,9 @@ function PitWallHUD({
         <div className="hud__card ers-card">
           <div className="card__header">
             <h4>HYBRID ERS ENERGY</h4>
-            <span className="ers-mode-tag font-mono">DEPLOY: HOTLAP</span>
+            <span className="ers-mode-tag font-mono">
+              {ersHarvest > 0 ? 'MODE: REGEN' : throttle > 85 ? 'DEPLOY: OVERTAKE' : 'DEPLOY: BALANCED'}
+            </span>
           </div>
           <div className="ers-content">
             <div className="ers-gauge-row font-mono">
@@ -278,18 +306,30 @@ function PitWallHUD({
               </span>
             </div>
             <div className="sector-splits-row font-mono">
-              <div className="s-split">
-                <span className="s-name">S1</span>
-                <span className="s-status purple-sector">PURPLE</span>
-              </div>
-              <div className="s-split">
-                <span className="s-name">S2</span>
-                <span className="s-status green-sector">GREEN</span>
-              </div>
-              <div className="s-split">
-                <span className="s-name">S3</span>
-                <span className="s-status yellow-sector">YELLOW</span>
-              </div>
+              {[
+                { idx: 1, name: 'S1', badge: s1Badge },
+                { idx: 2, name: 'S2', badge: s2Badge },
+                { idx: 3, name: 'S3', badge: s3Badge },
+              ].map(({ idx, name, badge }) => (
+                <div key={idx} className="s-split">
+                  <span className="s-name">{name}</span>
+                  <span className={`s-status ${badge.cls}`}>
+                    <span>{badge.label}</span>
+                    {badge.active && (
+                      <svg
+                        viewBox="0 0 8 8"
+                        width="7"
+                        height="7"
+                        fill="currentColor"
+                        aria-hidden="true"
+                        className="s-status__dot"
+                      >
+                        <circle cx="4" cy="4" r="3.5" />
+                      </svg>
+                    )}
+                  </span>
+                </div>
+              ))}
             </div>
           </div>
         </div>

@@ -1,4 +1,4 @@
-import { useMemo } from 'react';
+import { useState, useEffect } from 'react';
 import { useTelemetry } from '../hooks/useTelemetry';
 import Header from '../components/Header';
 import TimingTower from '../components/TimingTower';
@@ -24,7 +24,6 @@ function formatTime(seconds) {
 export default function Dashboard() {
   const {
     sessions,
-    circuits,
     activeSession,
     activeCircuit,
     selectedDrivers,
@@ -33,7 +32,6 @@ export default function Dashboard() {
     multiLiveData,
     multiHistory,
     currentPoint,
-    stats,
     isPlaying,
     playbackSpeed,
     currentTime,
@@ -41,19 +39,80 @@ export default function Dashboard() {
     currentLap,
     totalLaps,
     lapDuration,
-    raceEta,
-    loading,
+    isSwitchingRace,
     error,
     wsStatus,
     play,
     pause,
     seek,
+    seekLap,
     setSpeed,
     switchRace,
     toggleDriver,
     setPrimaryDriver,
     clearError,
   } = useTelemetry();
+
+  const [inspectedPoint, setInspectedPoint] = useState(null);
+
+  // Global keyboard shortcuts for race control
+  useEffect(() => {
+    const handleKeyDown = (e) => {
+      const target = e.target;
+      const tag = (target?.tagName || '').toLowerCase();
+      if (
+        tag === 'input' ||
+        tag === 'select' ||
+        tag === 'textarea' ||
+        target?.isContentEditable
+      ) {
+        return;
+      }
+
+      if (e.key === 'Escape') {
+        setInspectedPoint(null);
+        return;
+      }
+
+      if (e.code === 'Space') {
+        e.preventDefault();
+        if (isPlaying) pause();
+        else play();
+      } else if (e.code === 'ArrowRight') {
+        e.preventDefault();
+        seek(Math.min(totalTime || 4671, (currentTime || 0) + 5));
+      } else if (e.code === 'ArrowLeft') {
+        e.preventDefault();
+        seek(Math.max(0, (currentTime || 0) - 5));
+      } else if (e.code === 'ArrowUp') {
+        e.preventDefault();
+        seekLap(Math.min(totalLaps || 1, (currentLap || 1) + 1));
+      } else if (e.code === 'ArrowDown') {
+        e.preventDefault();
+        seekLap(Math.max(1, (currentLap || 1) - 1));
+      } else if (['Digit1', 'Digit2', 'Digit3', 'Digit4'].includes(e.code)) {
+        const idx = Number(e.code.replace('Digit', '')) - 1;
+        if (selectedDrivers[idx]) {
+          setPrimaryDriver(selectedDrivers[idx]);
+        }
+      }
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [
+    isPlaying,
+    play,
+    pause,
+    seek,
+    seekLap,
+    currentTime,
+    totalTime,
+    currentLap,
+    totalLaps,
+    selectedDrivers,
+    setPrimaryDriver,
+  ]);
 
   return (
     <div className="dashboard" id="dashboard">
@@ -68,7 +127,7 @@ export default function Dashboard() {
       />
 
       <main className="dashboard__content">
-        {/* Broadcast Playback Control Bar with Timeline Scrubber */}
+        {/* Broadcast Playback Control Bar with Timeline Scrubber & Lap Stepper */}
         <section className="playback-toolbar" id="playback-toolbar">
           <div className="toolbar-left">
             <button
@@ -78,8 +137,54 @@ export default function Dashboard() {
               onClick={isPlaying ? pause : play}
               aria-label={isPlaying ? 'Pause replay stream' : 'Resume replay stream'}
             >
-              {isPlaying ? '⏸ PAUSE REPLAY' : '▶ RESUME 1:1 REALTIME'}
+              {isPlaying ? (
+                <>
+                  <svg viewBox="0 0 14 14" width="12" height="12" fill="currentColor" aria-hidden="true">
+                    <rect x="2.5" y="2" width="3" height="10" rx="1" />
+                    <rect x="8.5" y="2" width="3" height="10" rx="1" />
+                  </svg>
+                  <span>PAUSE REPLAY</span>
+                </>
+              ) : (
+                <>
+                  <svg viewBox="0 0 14 14" width="12" height="12" fill="currentColor" aria-hidden="true">
+                    <polygon points="3,1.8 12,7 3,12.2" />
+                  </svg>
+                  <span>RESUME STREAM</span>
+                </>
+              )}
             </button>
+
+            {/* Lap Stepper */}
+            <div className="lap-stepper font-mono" role="group" aria-label="Lap selector">
+              <button
+                type="button"
+                className="lap-step-btn"
+                onClick={() => seekLap(Math.max(1, (currentLap || 1) - 1))}
+                disabled={(currentLap || 1) <= 1}
+                title="Previous Lap (Down Arrow)"
+                aria-label="Previous Lap"
+              >
+                <svg viewBox="0 0 12 12" width="12" height="12" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                  <polyline points="7.5 2.5 4 6 7.5 9.5" />
+                </svg>
+              </button>
+              <span className="lap-step-display">
+                LAP {currentLap || 1}/{totalLaps || 1}
+              </span>
+              <button
+                type="button"
+                className="lap-step-btn"
+                onClick={() => seekLap(Math.min(totalLaps || 1, (currentLap || 1) + 1))}
+                disabled={(currentLap || 1) >= (totalLaps || 1)}
+                title="Next Lap (Up Arrow)"
+                aria-label="Next Lap"
+              >
+                <svg viewBox="0 0 12 12" width="12" height="12" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                  <polyline points="4.5 2.5 8 6 4.5 9.5" />
+                </svg>
+              </button>
+            </div>
 
             <div className="speed-selector">
               <span className="speed-label font-mono">SPEED:</span>
@@ -115,13 +220,13 @@ export default function Dashboard() {
                 <span className="telemetry-clock">
                   RACE: {formatTime(currentTime)} / {formatTime(totalTime || 4671.48)}
                 </span>
-                <span className="telemetry-lap font-bold" style={{ color: '#ec4899' }}>
-                  LAP {currentLap || 1}/{totalLaps || 44} ({formatTime((currentTime || 0) % (lapDuration || 106.17))}/{formatTime(lapDuration || 106.17)})
+                <span className="telemetry-lap">
+                  LAP TIME: {formatTime((currentTime || 0) % (lapDuration || 106.17))}/{formatTime(lapDuration || 106.17)}
                 </span>
-                <span className="telemetry-eta" style={{ color: '#f59e0b', fontWeight: 700 }}>
+                <span className="telemetry-eta">
                   ETA: {currentPoint?.eta_seconds != null ? `${currentPoint.eta_seconds.toFixed(1)}s` : `${Math.max(0, (lapDuration || 106.17) - ((currentTime || 0) % (lapDuration || 106.17))).toFixed(1)}s`}
                 </span>
-                <span className="telemetry-dist" style={{ color: '#38bdf8' }}>
+                <span className="telemetry-dist">
                   DIST: {currentPoint?.distance ? `${(currentPoint.distance / 1000).toFixed(2)}km` : '0.00km'}
                 </span>
               </div>
@@ -132,7 +237,7 @@ export default function Dashboard() {
             {/* Active driver comparison badges */}
             <div className="driver-badges-strip font-mono">
               <span className="strip-title">COMPARING:</span>
-              {selectedDrivers.map((d) => {
+              {selectedDrivers.map((d, idx) => {
                 const prof = getDriverProfile(d);
                 const isPrimary = d === primaryDriver;
                 return (
@@ -142,21 +247,31 @@ export default function Dashboard() {
                     className={`driver-chip ${isPrimary ? 'driver-chip--primary' : ''}`}
                     style={{ borderColor: prof.color, color: prof.color }}
                     onClick={() => setPrimaryDriver(d)}
-                    title={prof.name}
+                    title={`${prof.name} (Shortcut: Key ${idx + 1})`}
                   >
-                    {isPrimary ? '★ ' : ''}
-                    {d} #{prof.number}
+                    {isPrimary && (
+                      <svg viewBox="0 0 16 16" width="10" height="10" fill="currentColor" aria-hidden="true">
+                        <path d="M8 1.3l2.1 4.2 4.6.7-3.3 3.2.8 4.6L8 11.8l-4.2 2.2.8-4.6L1.3 6.2l4.6-.7L8 1.3z" />
+                      </svg>
+                    )}
+                    <span>{d} #{prof.number}</span>
                   </button>
                 );
               })}
             </div>
 
-            <div className="stream-badge font-mono">
-              <span className="stream-dot"></span>
-              <span>60 FPS REAL-TIME</span>
+            <div className="shortcut-hint font-mono" title="Keyboard Shortcuts: Space (Play/Pause), Left/Right (±5s), Up/Down (Next/Prev Lap), 1-4 (Select Primary Driver)">
+              KEYS: SPACE • ←/→ • ↑/↓ • 1-4
             </div>
           </div>
         </section>
+
+        {isSwitchingRace && (
+          <div className="dashboard__loading-banner font-mono" role="status">
+            <span className="loading-spinner" aria-hidden="true"></span>
+            <span>SYNCHRONIZING FASTF1 SESSION TELEMETRY & 20-CAR GRID...</span>
+          </div>
+        )}
 
         {error && (
           <div className="dashboard__error card" role="alert">
@@ -176,7 +291,6 @@ export default function Dashboard() {
               onToggleDriver={toggleDriver}
               onSetPrimaryDriver={setPrimaryDriver}
               activeSession={activeSession}
-              currentTime={currentTime}
             />
           </div>
 
@@ -190,9 +304,10 @@ export default function Dashboard() {
                   multiPoints={multiLiveData}
                   selectedDrivers={selectedDrivers}
                   primaryDriver={primaryDriver}
-                  ghostDelta={currentPoint?.delta_to_ghost ?? -0.142}
+                  ghostDelta={currentPoint?.delta_to_ghost ?? 0}
                   sector={currentPoint?.sector ?? 1}
                   drs={Boolean(currentPoint?.drs)}
+                  inspectedPoint={inspectedPoint}
                 />
               </div>
 
@@ -212,6 +327,7 @@ export default function Dashboard() {
                 multiHistory={multiHistory}
                 selectedDrivers={selectedDrivers}
                 primaryDriver={primaryDriver}
+                onInspectPoint={setInspectedPoint}
               />
             </div>
 

@@ -59,10 +59,13 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
 
     logger.info("Services initialised")
 
-    # Pre-populate with authentic FastF1 telemetry data
+    # Pre-populate with authentic FastF1 telemetry data without blocking the event loop
     try:
+        import asyncio
         from backend.services.processing import process_raw_batch
-        records, drv, rnd, ev = app.state.fastf1_client.fetch_session_telemetry(2023, 1, "Q", "VER")
+        records, drv, rnd, ev = await asyncio.to_thread(
+            app.state.fastf1_client.fetch_session_telemetry, 2023, 1, "Q", "VER"
+        )
         if records:
             processed = process_raw_batch(records)
             await store.store_telemetry(

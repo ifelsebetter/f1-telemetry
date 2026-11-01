@@ -1,0 +1,45 @@
+name: f1-telemetry
+
+services:
+  backend:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    environment:
+      F1_APP_TITLE: ${F1_APP_TITLE:-F1 Telemetry Platform}
+      F1_LOG_LEVEL: ${F1_LOG_LEVEL:-INFO}
+      F1_FASTF1_CACHE_DIR: ${F1_FASTF1_CACHE_DIR:-/app/.fastf1_cache}
+      F1_ENABLE_SCHEDULED_INGESTION: ${F1_ENABLE_SCHEDULED_INGESTION:-false}
+    volumes:
+      - ./.fastf1_cache:/app/.fastf1_cache
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/health')"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 25s
+    networks:
+      - f1-net
+
+  frontend:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    environment:
+      VITE_API_PROXY_TARGET: http://backend:8000
+      VITE_WS_PROXY_TARGET: ws://backend:8000
+    depends_on:
+      backend:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:3000/').then(r => process.exit(r.ok ? 0 : 1)).catch(() => process.exit(1))"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+    networks:
+      - f1-net
+
+networks:
+  f1-net:
+    driver: bridge

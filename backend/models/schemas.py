@@ -150,6 +150,9 @@ class TelemetryStreamMessage(BaseModel):
     race_time: float | None = Field(None, description="Elapsed race time in seconds")
     total_race_duration: float | None = Field(None, description="Total race duration in seconds")
     race_eta_seconds: float | None = Field(None, description="Remaining seconds to race finish")
+    driver_results: list[dict[str, Any]] | None = Field(
+        None, description="Official session driver classification and metadata"
+    )
 
 
 # ---------------------------------------------------------------------------

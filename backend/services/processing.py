@@ -8,6 +8,7 @@ Optionally broadcasts new data to WebSocket subscribers.
 from __future__ import annotations
 
 import logging
+import math
 from typing import Any
 
 from backend.models.schemas import TelemetryData, TelemetryStreamMessage
@@ -18,32 +19,44 @@ logger = logging.getLogger(__name__)
 
 
 def _safe_float(value: Any, default: float = 0.0) -> float:
-    """Coerce *value* to float, returning *default* on failure."""
+    """Coerce *value* to finite float, returning *default* on failure or NaN/Inf."""
+    if isinstance(value, bool):
+        return 100.0 if value else 0.0
     try:
         result = float(value)
     except (TypeError, ValueError):
+        return default
+    if not math.isfinite(result):
         return default
     return result
 
 
 def _safe_int(value: Any, default: int = 0) -> int:
     """Coerce *value* to int, returning *default* on failure."""
+    if isinstance(value, bool):
+        return default
     try:
-        result = int(value)
+        fval = float(value)
+        if not math.isfinite(fval):
+            return default
+        return int(round(fval))
     except (TypeError, ValueError):
         return default
-    return result
 
 
 def _normalize_timestamp(raw: Any) -> float:
-    """Convert a FastF1 ``Timedelta`` or numeric value to seconds."""
+    """Convert a FastF1 ``Timedelta`` or numeric value to finite non-negative seconds."""
     if raw is None:
         raise ValueError("Timestamp cannot be None")
     if isinstance(raw, bool):
         raise ValueError("Timestamp cannot be boolean")
     if hasattr(raw, "total_seconds"):
-        return float(raw.total_seconds())
-    return float(raw)
+        val = float(raw.total_seconds())
+    else:
+        val = float(raw)
+    if not math.isfinite(val) or val < 0.0:
+        raise ValueError("Timestamp must be finite and non-negative")
+    return val
 
 
 def process_raw_batch(raw_records: list[dict[str, Any]]) -> list[TelemetryData]:
@@ -104,6 +117,15 @@ def process_raw_batch(raw_records: list[dict[str, Any]]) -> list[TelemetryData]:
                 delta_to_ghost=_safe_float(raw.get("delta_to_ghost", 0.0)),
                 sector=_safe_int(raw.get("sector", 1), default=1),
                 mini_sector=_safe_int(raw.get("mini_sector", 1), default=1),
+                distance=_safe_float(raw.get("distance", raw.get("Distance", 0.0))),
+                dist_remaining=_safe_float(raw.get("dist_remaining", 0.0)),
+                live_speed_ms=_safe_float(raw.get("live_speed_ms", 0.0)),
+                eta_seconds=_safe_float(raw.get("eta_seconds", 0.0)),
+                lap_time=_safe_float(raw.get("lap_time", 0.0)),
+                race_time=_safe_float(raw.get("race_time", 0.0)),
+                total_laps=_safe_int(raw.get("total_laps", 1), default=1),
+                total_race_duration=_safe_float(raw.get("total_race_duration", 0.0)),
+                race_eta_seconds=_safe_float(raw.get("race_eta_seconds", 0.0)),
             )
             processed.append(record)
         except Exception:

@@ -1,4 +1,4 @@
-import { memo } from 'react';
+import { memo, useState, useEffect } from 'react';
 import { useTheme } from '../hooks/useTheme';
 import ConnectionStatus from './ConnectionStatus';
 import './Header.css';
@@ -12,6 +12,21 @@ function Header({
   currentPoint,
 }) {
   const { theme, toggleTheme } = useTheme();
+  const [showCustomForm, setShowCustomForm] = useState(false);
+  const [customYear, setCustomYear] = useState(2023);
+  const [customRound, setCustomRound] = useState(1);
+  const [customType, setCustomType] = useState('R');
+
+  useEffect(() => {
+    if (!showCustomForm) return undefined;
+    const handleEsc = (e) => {
+      if (e.key === 'Escape') {
+        setShowCustomForm(false);
+      }
+    };
+    window.addEventListener('keydown', handleEsc);
+    return () => window.removeEventListener('keydown', handleEsc);
+  }, [showCustomForm]);
 
   const flag = currentPoint?.flag || 'GREEN';
   const sc = currentPoint?.safety_car || 'NONE';
@@ -25,6 +40,39 @@ function Header({
       : flag === 'RED'
       ? '#ef4444'
       : '#38bdf8';
+
+  const handleLoadCustom = (e) => {
+    e.preventDefault();
+    if (!onSwitchRace) return;
+    const roundMap = {
+      1: { name: 'Bahrain Grand Prix', circuit: 'bahrain' },
+      6: { name: 'Monaco Grand Prix', circuit: 'monaco' },
+      10: { name: 'British Grand Prix', circuit: 'silverstone' },
+      12: { name: 'Belgian Grand Prix', circuit: 'spa' },
+      14: { name: 'Italian Grand Prix', circuit: 'monza' },
+      16: { name: 'Japanese Grand Prix', circuit: 'suzuka' },
+      20: { name: 'São Paulo Grand Prix', circuit: 'interlagos' },
+    };
+    const meta = roundMap[customRound] || {
+      name: `Round ${customRound} Grand Prix`,
+      circuit: 'bahrain',
+    };
+    onSwitchRace({
+      year: Number(customYear),
+      round: Number(customRound),
+      session_type: customType,
+      event_name: `${meta.name} (${customType})`,
+      circuit_id: meta.circuit,
+    });
+    setShowCustomForm(false);
+  };
+
+  const activeSelectValue = activeSession
+    ? `${activeSession.year}|${activeSession.round}|${activeSession.session_type}`
+    : '';
+  const hasPresetMatch = sessions.some(
+    (s) => `${s.year}|${s.round}|${s.session_type}` === activeSelectValue
+  );
 
   return (
     <header className="header" id="app-header">
@@ -42,52 +90,111 @@ function Header({
           <div className="header__title-group">
             <div className="header__headline">
               <h1 className="header__title font-heading">APEX PITWALL</h1>
-              <span className="header__live-tag font-mono">LIVE 60Hz</span>
+              <span className="header__live-tag font-mono">20Hz STREAM • 60FPS</span>
             </div>
             <span className="header__subtitle">F1 Telemetry Broadcast & Race Control</span>
           </div>
         </div>
 
-        {/* Center: Grand Prix Race Switcher */}
-        <div className="header__race-selector">
-          <label htmlFor="grand-prix-select" className="race-selector__label font-mono">
-            RACE EVENT:
-          </label>
-          <div className="race-selector__select-wrapper">
-            <select
-              id="grand-prix-select"
-              className="race-selector__select font-heading"
-              value={
-                activeSession
-                  ? `${activeSession.year}|${activeSession.round}|${activeSession.session_type}`
-                  : ''
-              }
-              onChange={(e) => {
-                const val = e.target.value;
-                const match = sessions.find(
-                  (s) => `${s.year}|${s.round}|${s.session_type}` === val
-                );
-                if (match && onSwitchRace) {
-                  onSwitchRace(match);
-                }
-              }}
-            >
-              {sessions.map((s) => {
-                const key = `${s.year}|${s.round}|${s.session_type}`;
-                const label = `${s.year} R${s.round} — ${s.event_name} (${s.session_type})`;
-                return (
-                  <option key={key} value={key}>
-                    {label}
+        {/* Center: Grand Prix Race Switcher + Custom Session Loader */}
+        <div className="header__race-group">
+          <div className="header__race-selector">
+            <label htmlFor="grand-prix-select" className="race-selector__label font-mono">
+              RACE EVENT:
+            </label>
+            <div className="race-selector__select-wrapper">
+              <select
+                id="grand-prix-select"
+                className="race-selector__select font-heading"
+                value={activeSelectValue}
+                onChange={(e) => {
+                  const val = e.target.value;
+                  const match = sessions.find(
+                    (s) => `${s.year}|${s.round}|${s.session_type}` === val
+                  );
+                  if (match && onSwitchRace) {
+                    onSwitchRace(match);
+                  }
+                }}
+              >
+                {!hasPresetMatch && activeSession && (
+                  <option value={activeSelectValue}>
+                    {`${activeSession.year} R${activeSession.round} — ${activeSession.event_name}`}
                   </option>
-                );
-              })}
-            </select>
-            <span className="race-selector__arrow" aria-hidden="true">▼</span>
+                )}
+                {sessions.map((s) => {
+                  const key = `${s.year}|${s.round}|${s.session_type}`;
+                  const label = `${s.year} R${s.round} — ${s.event_name} (${s.session_type})`;
+                  return (
+                    <option key={key} value={key}>
+                      {label}
+                    </option>
+                  );
+                })}
+              </select>
+              <span className="race-selector__arrow" aria-hidden="true">
+                <svg viewBox="0 0 12 12" width="12" height="12" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                  <polyline points="2.5 4.5 6 8 9.5 4.5" />
+                </svg>
+              </span>
+            </div>
+            {activeCircuit && (
+              <span className="race-selector__location font-mono">
+                {activeCircuit.location || activeCircuit.name}
+              </span>
+            )}
+            <button
+              type="button"
+              className={`header__custom-btn font-mono ${showCustomForm ? 'active' : ''}`}
+              onClick={() => setShowCustomForm((prev) => !prev)}
+              aria-expanded={showCustomForm}
+              title="Load custom FastF1 Year / Round / Session"
+            >
+              <svg viewBox="0 0 16 16" width="13" height="13" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                <line x1="2" y1="4" x2="14" y2="4" />
+                <line x1="2" y1="8" x2="14" y2="8" />
+                <line x1="2" y1="12" x2="14" y2="12" />
+                <circle cx="5" cy="4" r="1.5" fill="currentColor" />
+                <circle cx="10" cy="8" r="1.5" fill="currentColor" />
+                <circle cx="7" cy="12" r="1.5" fill="currentColor" />
+              </svg>
+              <span>CUSTOM GP</span>
+            </button>
           </div>
-          {activeCircuit && (
-            <span className="race-selector__location font-mono">
-              {activeCircuit.location || activeCircuit.name}
-            </span>
+
+          {showCustomForm && (
+            <form className="header__custom-form font-mono" onSubmit={handleLoadCustom}>
+              <label className="custom-form__field">
+                <span>YEAR</span>
+                <select value={customYear} onChange={(e) => setCustomYear(Number(e.target.value))}>
+                  {[2024, 2023, 2022, 2021].map((yr) => (
+                    <option key={yr} value={yr}>{yr}</option>
+                  ))}
+                </select>
+              </label>
+              <label className="custom-form__field">
+                <span>RND</span>
+                <input
+                  type="number"
+                  min="1"
+                  max="24"
+                  value={customRound}
+                  onChange={(e) => setCustomRound(Number(e.target.value))}
+                />
+              </label>
+              <label className="custom-form__field">
+                <span>TYPE</span>
+                <select value={customType} onChange={(e) => setCustomType(e.target.value)}>
+                  <option value="R">Race (R)</option>
+                  <option value="Q">Quali (Q)</option>
+                  <option value="S">Sprint (S)</option>
+                  <option value="FP1">FP1</option>
+                </select>
+              </label>
+              <button type="submit" className="custom-form__submit">
+                LOAD
+              </button>
+            </form>
           )}
         </div>
 
@@ -113,6 +220,7 @@ function Header({
 
           {/* Theme Toggle */}
           <button
+            type="button"
             className="header__theme-toggle"
             onClick={toggleTheme}
             aria-label={`Switch to ${theme === 'dark' ? 'light' : 'dark'} mode`}
@@ -120,7 +228,7 @@ function Header({
             id="theme-toggle"
           >
             {theme === 'dark' ? (
-              <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
                 <circle cx="12" cy="12" r="5" />
                 <line x1="12" y1="1" x2="12" y2="3" />
                 <line x1="12" y1="21" x2="12" y2="23" />
@@ -132,7 +240,7 @@ function Header({
                 <line x1="18.36" y1="5.64" x2="19.78" y2="4.22" />
               </svg>
             ) : (
-              <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
                 <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z" />
               </svg>
             )}

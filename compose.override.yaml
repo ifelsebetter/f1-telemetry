@@ -1,0 +1,21 @@
+services:
+  backend:
+    build:
+      target: backend-dev
+    environment:
+      F1_LOG_LEVEL: ${F1_LOG_LEVEL:-DEBUG}
+    ports:
+      - "${BACKEND_PORT:-8000}:8000"
+    volumes:
+      - ./backend:/app/backend
+      - ./.fastf1_cache:/app/.fastf1_cache
+
+  frontend:
+    build:
+      target: frontend-dev
+    ports:
+      - "${FRONTEND_PORT:-3000}:3000"
+    volumes:
+      - ./frontend/src:/app/frontend/src
+      - ./frontend/index.html:/app/frontend/index.html
+      - ./frontend/vite.config.js:/app/frontend/vite.config.js

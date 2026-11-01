@@ -1,0 +1,16 @@
+services:
+  backend:
+    build:
+      target: backend-prod
+    environment:
+      F1_LOG_LEVEL: ${F1_LOG_LEVEL:-INFO}
+    ports:
+      - "${BACKEND_PORT:-8000}:8000"
+    restart: unless-stopped
+
+  frontend:
+    build:
+      target: frontend-prod
+    ports:
+      - "${FRONTEND_PORT:-3000}:3000"
+    restart: unless-stopped

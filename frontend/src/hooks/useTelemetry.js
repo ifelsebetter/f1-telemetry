@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback, useRef, useMemo } from 'react';
-import { fetchSessions, fetchTelemetry, fetchMetadata, fetchCircuits, fetchCircuit, getWebSocketUrl } from '../services/api';
+import { fetchSessions, fetchCircuits, fetchCircuit, getWebSocketUrl } from '../services/api';
 import { DRIVER_PROFILES, getCircuitPreset, getDriverProfile } from '../services/circuitData';
 import { useWebSocket } from './useWebSocket';
 
@@ -84,6 +84,8 @@ export function useTelemetry() {
   const [raceEta, setRaceEta] = useState(0);
 
   const [loading, setLoading] = useState(false);
+  const [isSwitchingRace, setIsSwitchingRace] = useState(false);
+  const [sessionResults, setSessionResults] = useState([]);
   const [error, setError] = useState(null);
 
   const historyBuffersRef = useRef({});
@@ -139,6 +141,37 @@ export function useTelemetry() {
     }
     if (lastMessage.type === 'speed_status' && typeof lastMessage.speed === 'number') {
       setPlaybackSpeed(lastMessage.speed);
+      return;
+    }
+    if (lastMessage.type === 'loading_status') {
+      setIsSwitchingRace(Boolean(lastMessage.loading));
+      return;
+    }
+    if (lastMessage.type === 'session_metadata') {
+      if (Array.isArray(lastMessage.driver_results)) {
+        setSessionResults(lastMessage.driver_results);
+      }
+      if (typeof lastMessage.total_laps === 'number') {
+        setTotalLaps(lastMessage.total_laps);
+      }
+      if (typeof lastMessage.lap_duration === 'number') {
+        setLapDuration(lastMessage.lap_duration);
+      }
+      if (typeof lastMessage.total_race_duration === 'number' && lastMessage.total_race_duration > 0) {
+        setTotalTime(lastMessage.total_race_duration);
+      }
+      return;
+    }
+    if (lastMessage.type === 'race_switched') {
+      setIsSwitchingRace(false);
+      if (Array.isArray(lastMessage.driver_results)) {
+        setSessionResults(lastMessage.driver_results);
+      }
+      if (typeof lastMessage.total_laps === 'number') {
+        setTotalLaps(lastMessage.total_laps);
+      }
+      setCurrentLap(1);
+      setCurrentTime(0);
       return;
     }
 
@@ -233,6 +266,13 @@ export function useTelemetry() {
     historyBuffersRef.current = {};
   }, [sendMessage]);
 
+  const seekLap = useCallback((lapNum) => {
+    const targetLap = Math.max(1, Math.min(totalLaps, Math.floor(Number(lapNum) || 1)));
+    sendMessage({ type: 'seek_lap', lap: targetLap });
+    setCurrentLap(targetLap);
+    historyBuffersRef.current = {};
+  }, [sendMessage, totalLaps]);
+
   const setSpeed = useCallback((spd) => {
     const num = Number(spd);
     sendMessage({ type: 'set_speed', speed: num });
@@ -289,31 +329,54 @@ export function useTelemetry() {
     sendMessage({ type: 'set_driver', driver: code });
   }, [sendMessage]);
 
-  // 6. Compute Full 20-Driver Timing Tower List
+  // 6. Compute Full 20-Driver Timing Tower List with live dynamic sorting & intervals
   const allDrivers = useMemo(() => {
-    const driverCodes = Object.keys(DRIVER_PROFILES);
-    const sorted = driverCodes.map((code, idx) => {
+    const resultsMap = {};
+    sessionResults.forEach((r, idx) => {
+      if (r && r.code) {
+        resultsMap[r.code.toUpperCase()] = { ...r, classOrder: idx };
+      }
+    });
+
+    const driverCodes = Array.from(
+      new Set([
+        ...sessionResults.map((r) => r.code?.toUpperCase()).filter(Boolean),
+        ...Object.keys(multiLiveData),
+        ...Object.keys(DRIVER_PROFILES),
+      ])
+    ).slice(0, 20);
+
+    const rawEntries = driverCodes.map((code, idx) => {
       const profile = getDriverProfile(code);
+      const resMeta = resultsMap[code];
       const livePt = multiLiveData[code];
-      const delta = livePt ? livePt.delta_to_ghost : idx * 0.18;
-      const speed = livePt ? Math.round(livePt.speed) : 290;
-      const liveSpeedMs = livePt ? (livePt.live_speed_ms || (speed / 3.6)).toFixed(1) : (speed / 3.6).toFixed(1);
+      const delta = livePt ? Number(livePt.delta_to_ghost ?? 0) : idx * 0.18;
+      const speed = livePt ? Math.round(livePt.speed) : 0;
+      const liveSpeedMs = livePt
+        ? Number(livePt.live_speed_ms ?? speed / 3.6).toFixed(1)
+        : '0.0';
       const distance = livePt ? livePt.distance : 0;
       const distRemaining = livePt ? livePt.dist_remaining : 0;
       const etaSeconds = livePt ? livePt.eta_seconds : Math.max(0, (totalTime || 90.0) - currentTime);
-      const gear = livePt ? livePt.gear : 7;
+      const gear = livePt ? livePt.gear : 0;
       const sector = livePt ? livePt.sector : 1;
-      const compound = livePt ? livePt.tyre_compound : (idx % 3 === 0 ? 'SOFT' : idx % 3 === 1 ? 'MEDIUM' : 'HARD');
+      const compound = livePt
+        ? livePt.tyre_compound
+        : idx % 3 === 0
+        ? 'SOFT'
+        : idx % 3 === 1
+        ? 'MEDIUM'
+        : 'HARD';
 
       return {
         code,
-        name: profile.name,
-        team: profile.team,
-        color: profile.color,
-        number: profile.number,
-        position: idx + 1,
-        gap: idx === 0 ? 'LEADER' : `+${delta.toFixed(3)}s`,
-        interval: idx === 0 ? 'INTERVAL' : `+${(0.12 + (idx * 0.05)).toFixed(3)}s`,
+        name: resMeta?.name || profile.name,
+        team: resMeta?.team || profile.team,
+        color: resMeta?.color || profile.color,
+        number: resMeta?.number || profile.number,
+        rawDelta: delta,
+        hasLive: Boolean(livePt),
+        fallbackOrder: resMeta ? resMeta.classOrder : idx,
         speed,
         live_speed_ms: liveSpeedMs,
         distance,
@@ -322,16 +385,41 @@ export function useTelemetry() {
         gear,
         sector,
         compound,
-        drs: livePt ? livePt.drs : false,
+        drs: livePt ? Boolean(livePt.drs) : false,
+        ers_soc: livePt ? livePt.ers_soc : 100,
+        tyre_wear: livePt ? livePt.tyre_wear : 0,
         isSelected: selectedDrivers.includes(code),
         isPrimary: primaryDriver === code,
         livePoint: livePt,
       };
     });
 
-    // Rank by position
-    return sorted;
-  }, [multiLiveData, selectedDrivers, primaryDriver]);
+    // Sort live drivers by delta_to_ghost ascending (leader has lowest delta)
+    rawEntries.sort((a, b) => {
+      if (a.hasLive && b.hasLive) {
+        if (Math.abs(a.rawDelta - b.rawDelta) > 0.005) {
+          return a.rawDelta - b.rawDelta;
+        }
+      }
+      if (a.hasLive !== b.hasLive) return a.hasLive ? -1 : 1;
+      return a.fallbackOrder - b.fallbackOrder;
+    });
+
+    const leaderDelta = rawEntries[0]?.rawDelta ?? 0;
+
+    return rawEntries.map((entry, idx) => {
+      const gapVal = Math.max(0, entry.rawDelta - leaderDelta);
+      const prevDelta = idx > 0 ? rawEntries[idx - 1].rawDelta : leaderDelta;
+      const intVal = Math.max(0, entry.rawDelta - prevDelta);
+
+      return {
+        ...entry,
+        position: idx + 1,
+        gap: idx === 0 ? 'LEADER' : `+${gapVal.toFixed(3)}s`,
+        interval: idx === 0 ? 'INTERVAL' : `+${intVal.toFixed(3)}s`,
+      };
+    });
+  }, [multiLiveData, selectedDrivers, primaryDriver, sessionResults, totalTime, currentTime]);
 
   // Stats for the active primary car
   const stats = useMemo(() => {
@@ -370,12 +458,14 @@ export function useTelemetry() {
     totalLaps,
     lapDuration,
     raceEta,
-    loading,
+    loading: loading || isSwitchingRace,
+    isSwitchingRace,
     error,
     wsStatus,
     play,
     pause,
     seek,
+    seekLap,
     setSpeed,
     switchRace,
     toggleDriver,

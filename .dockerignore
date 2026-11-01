@@ -1,0 +1,27 @@
+# Git & VCS
+.git
+.gitignore
+
+# Python cache & virtual environments
+__pycache__/
+*.py[cod]
+*$py.class
+.pytest_cache/
+.venv/
+venv/
+env/
+
+# Node dependencies & build output
+frontend/node_modules/
+frontend/dist/
+npm-debug.log*
+
+# FastF1 cache (mounted as persistent volume at runtime)
+.fastf1_cache/
+
+# Environment & IDE files
+.env
+.env.local
+.vscode/
+.idea/
+*.log

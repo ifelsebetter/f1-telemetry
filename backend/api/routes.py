@@ -6,6 +6,7 @@ to the services and FastF1 ingestion layer.
 
 from __future__ import annotations
 
+import asyncio
 import logging
 from typing import Any, Optional
 
@@ -47,6 +48,17 @@ _FIELD_METADATA: list[TelemetryMetadataField] = [
     TelemetryMetadataField(name="brake", unit="%", description="Brake application"),
     TelemetryMetadataField(name="gear", unit="#", description="Current gear (0=neutral)"),
     TelemetryMetadataField(name="rpm", unit="rpm", description="Engine revolutions per minute"),
+    TelemetryMetadataField(name="steer", unit="norm", description="Normalized steering angle (-1.0 left to +1.0 right)"),
+    TelemetryMetadataField(name="ers_soc", unit="%", description="ERS battery state of charge"),
+    TelemetryMetadataField(name="ers_harvest", unit="kW", description="MGU-K kinetic regeneration power"),
+    TelemetryMetadataField(name="tyre_temp_fl", unit="°C", description="Front-left tyre surface temperature"),
+    TelemetryMetadataField(name="tyre_temp_fr", unit="°C", description="Front-right tyre surface temperature"),
+    TelemetryMetadataField(name="tyre_temp_rl", unit="°C", description="Rear-left tyre surface temperature"),
+    TelemetryMetadataField(name="tyre_temp_rr", unit="°C", description="Rear-right tyre surface temperature"),
+    TelemetryMetadataField(name="tyre_wear", unit="%", description="Cumulative tyre degradation"),
+    TelemetryMetadataField(name="delta_to_ghost", unit="s", description="Cumulative time delta vs reference pole lap"),
+    TelemetryMetadataField(name="distance", unit="m", description="Lap distance from start line"),
+    TelemetryMetadataField(name="drs", unit="bool", description="Drag Reduction System active state"),
 ]
 
 OFFICIAL_DRIVERS = [
@@ -229,8 +241,8 @@ async def get_telemetry(
             s_type,
             primary_driver,
         )
-        raw, resolved_driver, fetched_round, event_name = client.fetch_session_telemetry(
-            year, gp_spec, s_type, primary_driver
+        raw, resolved_driver, fetched_round, event_name = await asyncio.to_thread(
+            client.fetch_session_telemetry, year, gp_spec, s_type, primary_driver
         )
 
         resolved_round = fetched_round or resolved_round or 1
@@ -272,13 +284,15 @@ async def get_telemetry(
     # Query additional requested drivers directly from FastF1
     if len(target_drivers) > 1:
         try:
-            f1_session = client.load_session(year, resolved_round, s_type)
+            f1_session = await asyncio.to_thread(client.load_session, year, resolved_round, s_type)
             cinfo = f1_session.get_circuit_info()
             rot_mat = _build_rotation_matrix(float(cinfo.rotation))
             for d in target_drivers:
                 if d in drivers_data:
                     continue
-                d_records = client.fetch_driver_fastest_lap_telemetry(f1_session, d, rot_mat)
+                d_records = await asyncio.to_thread(
+                    client.fetch_driver_fastest_lap_telemetry, f1_session, d, rot_mat
+                )
                 if d_records:
                     drivers_data[d] = process_raw_batch(d_records)
         except Exception as e:

@@ -1,5 +1,6 @@
 import asyncio
 import json
+import time
 import requests
 import websockets
 
@@ -9,12 +10,20 @@ FRONTEND_WS_URL = "ws://127.0.0.1:3000/ws/telemetry"
 def test_rest_endpoints():
     print("=== Testing REST API via Vite Proxy ===")
     
-    # 1. Test Health
+    # 1. Test Health (with startup retry after container restarts)
     health_url = f"{FRONTEND_REST_URL}/health"
     print(f"GET {health_url} ...")
-    r = requests.get(health_url)
+    r = None
+    for _ in range(15):
+        try:
+            r = requests.get(health_url, timeout=3)
+            if r.status_code == 200:
+                break
+        except Exception:
+            pass
+        time.sleep(1)
+    assert r is not None and r.status_code == 200, "Health check failed"
     print(f"Status: {r.status_code}, Body: {r.json()}")
-    assert r.status_code == 200, "Health check failed"
     assert r.json().get("status") == "ok", "Expected status 'ok'"
     
     # 2. Test Sessions
@@ -56,7 +65,20 @@ def test_rest_endpoints():
     assert "summary" in data_multi, "Expected 'summary' key in response"
     assert len(data_multi["data"]) > 0, "Expected fallback data or live telemetry points"
     print(f"Multi-race/Driver points count: {len(data_multi['data'])}")
-    
+
+    # 6. Test Circuits & Multi-driver comparison payload + validation error handling
+    circuits_url = f"{FRONTEND_REST_URL}/api/v1/circuits"
+    r_c = requests.get(circuits_url)
+    assert r_c.status_code == 200 and len(r_c.json()) >= 7, "Circuits list failed"
+
+    r_md = requests.get(f"{FRONTEND_REST_URL}/api/v1/telemetry?year=2023&round=1&session_type=Q&drivers=VER,NOR")
+    assert r_md.status_code == 200, "Multi-driver comparison query failed"
+    md_payload = r_md.json()
+    assert "VER" in md_payload.get("drivers_data", {}) and "NOR" in md_payload.get("drivers_data", {}), "Expected VER and NOR in drivers_data"
+
+    r_bad = requests.get(f"{FRONTEND_REST_URL}/api/v1/telemetry?year=1800&round=99")
+    assert r_bad.status_code == 422, f"Expected 422 validation error, got {r_bad.status_code}"
+
     print("REST tests passed successfully!\n")
 
 async def test_websocket_endpoint():
@@ -102,7 +124,33 @@ async def test_websocket_endpoint():
                 print("Received filters_updated confirmation.")
                 break
         assert got_filters, "Expected filters_updated confirmation"
-        
+
+        # Test replay control commands (pause, seek, seek_lap, set_speed, play)
+        await ws.send(json.dumps({"type": "pause"}))
+        await ws.send(json.dumps({"type": "seek", "timestamp": 25.0}))
+        got_seek_frame = False
+        for _ in range(30):
+            raw_msg = await asyncio.wait_for(ws.recv(), timeout=5.0)
+            msg = json.loads(raw_msg)
+            ts = msg.get("payload", {}).get("timestamp", 0)
+            if msg.get("type") == "telemetry_update" and ts >= 20.0:
+                got_seek_frame = True
+                break
+        assert got_seek_frame, "Expected immediate telemetry_update after seek"
+
+        await ws.send(json.dumps({"type": "seek_lap", "lap": 2}))
+        got_lap_frame = False
+        for _ in range(30):
+            raw_msg = await asyncio.wait_for(ws.recv(), timeout=5.0)
+            msg = json.loads(raw_msg)
+            if msg.get("type") == "telemetry_update" and msg.get("current_lap") == 2:
+                got_lap_frame = True
+                break
+        assert got_lap_frame, "Expected current_lap == 2 after seek_lap"
+
+        await ws.send(json.dumps({"type": "set_speed", "speed": 5.0}))
+        await ws.send(json.dumps({"type": "play"}))
+        print("WebSocket replay controls (pause, seek, seek_lap, set_speed, play) verified.")
         print("WebSocket tests passed successfully!\n")
 
 def main():
