@@ -44,6 +44,8 @@ function Header({
   const handleLoadCustom = (e) => {
     e.preventDefault();
     if (!onSwitchRace) return;
+    const r = Math.max(1, Math.min(24, Math.floor(Number(customRound) || 1)));
+    const y = Math.max(1950, Math.min(2099, Math.floor(Number(customYear) || 2023)));
     const roundMap = {
       1: { name: 'Bahrain Grand Prix', circuit: 'bahrain' },
       6: { name: 'Monaco Grand Prix', circuit: 'monaco' },
@@ -53,13 +55,13 @@ function Header({
       16: { name: 'Japanese Grand Prix', circuit: 'suzuka' },
       20: { name: 'São Paulo Grand Prix', circuit: 'interlagos' },
     };
-    const meta = roundMap[customRound] || {
-      name: `Round ${customRound} Grand Prix`,
+    const meta = roundMap[r] || {
+      name: `Round ${r} Grand Prix`,
       circuit: 'bahrain',
     };
     onSwitchRace({
-      year: Number(customYear),
-      round: Number(customRound),
+      year: y,
+      round: r,
       session_type: customType,
       event_name: `${meta.name} (${customType})`,
       circuit_id: meta.circuit,
