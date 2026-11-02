@@ -145,9 +145,27 @@ export function useTelemetry() {
     }
     if (lastMessage.type === 'loading_status') {
       setIsSwitchingRace(Boolean(lastMessage.loading));
+      if (lastMessage.loading) {
+        setMultiLiveData({});
+        setCurrentPoint(null);
+      }
       return;
     }
     if (lastMessage.type === 'session_metadata') {
+      if (lastMessage.year && lastMessage.round && lastMessage.session_type) {
+        setSessions((currentSessions) => {
+          const match = currentSessions.find(
+            (s) => s.year === lastMessage.year && s.round === lastMessage.round && s.session_type === lastMessage.session_type
+          );
+          if (match) setActiveSession(match);
+          return currentSessions;
+        });
+      }
+      if (lastMessage.circuit_id) {
+        fetchCircuit(lastMessage.circuit_id).then((c) => {
+          if (c) setActiveCircuit(c);
+        }).catch(() => {});
+      }
       if (Array.isArray(lastMessage.driver_results)) {
         setSessionResults(lastMessage.driver_results);
       }
@@ -170,8 +188,20 @@ export function useTelemetry() {
       if (typeof lastMessage.total_laps === 'number') {
         setTotalLaps(lastMessage.total_laps);
       }
+      if (typeof lastMessage.lap_duration === 'number') {
+        setLapDuration(lastMessage.lap_duration);
+      }
+      if (typeof lastMessage.total_race_duration === 'number' && lastMessage.total_race_duration > 0) {
+        setTotalTime(lastMessage.total_race_duration);
+      }
+      if (lastMessage.circuit_id) {
+        fetchCircuit(lastMessage.circuit_id).then((c) => {
+          if (c) setActiveCircuit(c);
+        }).catch(() => {});
+      }
       setCurrentLap(1);
       setCurrentTime(0);
+      historyBuffersRef.current = {};
       return;
     }
 
@@ -283,14 +313,19 @@ export function useTelemetry() {
   const switchRace = useCallback(async (sessionItem) => {
     if (!sessionItem) return;
     setActiveSession(sessionItem);
+    setIsSwitchingRace(true);
+
+    // Immediately flush old points so they are not rendered on the new circuit
+    setMultiLiveData({});
+    setCurrentPoint(null);
+    setCurrentTime(0);
+    setCurrentLap(1);
+    historyBuffersRef.current = {};
 
     const circuitId = sessionItem.circuit_id || 'bahrain';
     fetchCircuit(circuitId).then((c) => {
       if (c) setActiveCircuit(c);
     }).catch(() => {});
-
-    // Flush chart buffers on race switch
-    historyBuffersRef.current = {};
 
     sendMessage({
       type: 'switch_race',

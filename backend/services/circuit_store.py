@@ -16,6 +16,19 @@ logger = logging.getLogger(__name__)
 # In-memory store of official circuits extracted from FastF1
 _CIRCUITS: dict[str, dict[str, Any]] = {}
 
+CIRCUIT_ALIASES: dict[str, str] = {
+    "british": "silverstone",
+    "silverstone": "silverstone",
+    "italian": "monza",
+    "monza": "monza",
+    "belgian": "spa",
+    "spa": "spa",
+    "monaco": "monaco",
+    "monte_carlo": "monaco",
+    "bahrain": "bahrain",
+    "sakhir": "bahrain",
+}
+
 
 def _load_pre_extracted() -> None:
     """Load pre-extracted official FastF1 circuit coordinates."""
@@ -25,6 +38,10 @@ def _load_pre_extracted() -> None:
             with open(path, "r") as f:
                 data = json.load(f)
                 _CIRCUITS.update(data)
+                # Register aliases as well
+                for alias_k, canonical in CIRCUIT_ALIASES.items():
+                    if canonical in _CIRCUITS and alias_k not in _CIRCUITS:
+                        _CIRCUITS[alias_k] = _CIRCUITS[canonical]
                 logger.info("Loaded %d official FastF1 circuits from %s", len(data), path.name)
         except Exception as e:
             logger.warning("Failed loading official circuits from %s: %s", path, e)
@@ -36,7 +53,8 @@ _load_pre_extracted()
 def get_circuit(circuit_id: str) -> dict[str, Any] | None:
     """Return authentic FastF1 track coordinates and turns for circuit_id."""
     slug = circuit_id.lower().replace(" grand prix", "").replace("gp", "").strip().replace(" ", "_")
-    return _CIRCUITS.get(slug) or _CIRCUITS.get(circuit_id.lower())
+    alias = CIRCUIT_ALIASES.get(slug, slug)
+    return _CIRCUITS.get(alias) or _CIRCUITS.get(slug) or _CIRCUITS.get(circuit_id.lower())
 
 
 def register_circuit(circuit_data: dict[str, Any]) -> None:
@@ -44,6 +62,9 @@ def register_circuit(circuit_data: dict[str, Any]) -> None:
     cid = circuit_data.get("id", "").lower()
     if cid:
         _CIRCUITS[cid] = circuit_data
+        alias = CIRCUIT_ALIASES.get(cid)
+        if alias and alias != cid:
+            _CIRCUITS[alias] = circuit_data
         logger.info("Registered official FastF1 circuit %s (%d waypoints, %d turns)", cid, len(circuit_data.get("waypoints", [])), len(circuit_data.get("turns", [])))
 
 

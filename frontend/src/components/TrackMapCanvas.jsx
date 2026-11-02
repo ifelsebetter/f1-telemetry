@@ -83,6 +83,7 @@ function TrackMapCanvas({
 
   useEffect(() => {
     currentPositionsRef.current = {};
+    targetPositionsRef.current = {};
   }, [circuit.name, circuit.id]);
 
   // Coordinate transforms in CSS pixels
@@ -284,6 +285,7 @@ function TrackMapCanvas({
         const cx = toCanvasX(curr.x);
         const cy = toCanvasY(curr.y);
         if (!Number.isFinite(cx) || !Number.isFinite(cy)) return;
+        if (cx < -60 || cx > width + 60 || cy < -60 || cy > height + 60) return;
 
         const prof = getDriverProfile(code);
         ctx.beginPath();
@@ -312,6 +314,7 @@ function TrackMapCanvas({
         const cx = toCanvasX(curr.x);
         const cy = toCanvasY(curr.y);
         if (!Number.isFinite(cx) || !Number.isFinite(cy)) return;
+        if (cx < -60 || cx > width + 60 || cy < -60 || cy > height + 60) return;
 
         const prof = getDriverProfile(code);
         const isPrimary = code === primaryDriver;

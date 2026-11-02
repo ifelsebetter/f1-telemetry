@@ -6,7 +6,10 @@ without touching source code.  No secrets are hardcoded.
 
 from __future__ import annotations
 
+from pathlib import Path
 from pydantic_settings import BaseSettings
+
+_DEFAULT_CACHE_DIR = str(Path(__file__).resolve().parent.parent / ".fastf1_cache")
 
 
 class Settings(BaseSettings):
@@ -29,7 +32,7 @@ class Settings(BaseSettings):
 
     # -- Ingestion --
     ingestion_interval_seconds: int = 300
-    fastf1_cache_dir: str = ".fastf1_cache"
+    fastf1_cache_dir: str = _DEFAULT_CACHE_DIR
 
     # -- Feature flags --
     enable_scheduled_ingestion: bool = False

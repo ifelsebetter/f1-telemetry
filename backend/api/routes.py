@@ -68,13 +68,13 @@ OFFICIAL_DRIVERS = [
 ]
 
 DEFAULT_PRESET_SESSIONS: list[SessionInfo] = [
-    SessionInfo(year=2023, round=12, session_type="R", event_name="Belgian Grand Prix (Full Race - 44 Laps)", driver="VER", circuit_id="spa", drivers=OFFICIAL_DRIVERS),
-    SessionInfo(year=2023, round=1, session_type="R", event_name="Bahrain Grand Prix (Full Race - 57 Laps)", driver="VER", circuit_id="bahrain", drivers=OFFICIAL_DRIVERS),
-    SessionInfo(year=2023, round=14, session_type="R", event_name="Italian Grand Prix (Full Race - 53 Laps)", driver="VER", circuit_id="monza", drivers=OFFICIAL_DRIVERS),
-    SessionInfo(year=2023, round=10, session_type="R", event_name="British Grand Prix (Full Race - 52 Laps)", driver="VER", circuit_id="silverstone", drivers=OFFICIAL_DRIVERS),
-    SessionInfo(year=2023, round=6, session_type="R", event_name="Monaco Grand Prix (Full Race - 78 Laps)", driver="VER", circuit_id="monaco", drivers=OFFICIAL_DRIVERS),
-    SessionInfo(year=2023, round=12, session_type="Q", event_name="Belgian Grand Prix (Qualifying)", driver="VER", circuit_id="spa", drivers=OFFICIAL_DRIVERS),
-    SessionInfo(year=2023, round=1, session_type="Q", event_name="Bahrain Grand Prix (Qualifying)", driver="VER", circuit_id="bahrain", drivers=OFFICIAL_DRIVERS),
+    SessionInfo(year=2023, round=12, session_type="Q", event_name="Belgian Grand Prix (Spa)", driver="VER", circuit_id="spa", drivers=OFFICIAL_DRIVERS),
+    SessionInfo(year=2023, round=1, session_type="Q", event_name="Bahrain Grand Prix (Sakhir)", driver="VER", circuit_id="bahrain", drivers=OFFICIAL_DRIVERS),
+    SessionInfo(year=2023, round=6, session_type="Q", event_name="Monaco Grand Prix (Monte Carlo)", driver="VER", circuit_id="monaco", drivers=OFFICIAL_DRIVERS),
+    SessionInfo(year=2023, round=10, session_type="Q", event_name="British Grand Prix (Silverstone)", driver="VER", circuit_id="silverstone", drivers=OFFICIAL_DRIVERS),
+    SessionInfo(year=2023, round=14, session_type="Q", event_name="Italian Grand Prix (Monza)", driver="VER", circuit_id="monza", drivers=OFFICIAL_DRIVERS),
+    SessionInfo(year=2024, round=1, session_type="Q", event_name="2024 Bahrain Grand Prix (Sakhir)", driver="VER", circuit_id="bahrain", drivers=OFFICIAL_DRIVERS),
+    SessionInfo(year=2023, round=12, session_type="R", event_name="Belgian Grand Prix (Full Race)", driver="VER", circuit_id="spa", drivers=OFFICIAL_DRIVERS),
 ]
 
 

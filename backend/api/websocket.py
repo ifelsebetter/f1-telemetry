@@ -27,10 +27,10 @@ ws_router = APIRouter(tags=["websocket"])
 async def telemetry_stream(
     websocket: WebSocket,
     year: int = 2023,
-    round: int = 1,
+    round: int = 12,
     session_type: str = "Q",
     driver: str = "VER",
-    circuit_id: str = "bahrain",
+    circuit_id: str = "spa",
     manager: ConnectionManager = Depends(get_ws_manager),
     client: FastF1Client = Depends(get_fastf1_client),
 ) -> None:
@@ -63,14 +63,17 @@ async def telemetry_stream(
         }))
 
     async def push_stream() -> None:
-        try:
-            async for msg in replay.stream():
-                if websocket in manager._active:
+        while websocket in manager._active:
+            try:
+                async for msg in replay.stream():
+                    if websocket not in manager._active:
+                        break
                     await websocket.send_text(msg.model_dump_json())
-        except asyncio.CancelledError:
-            pass
-        except Exception as e:
-            logger.debug("Replay stream push ended: %s", e)
+            except asyncio.CancelledError:
+                break
+            except Exception as e:
+                logger.debug("Replay stream push loop error: %s; resuming", e)
+                await asyncio.sleep(0.05)
 
     stream_task = asyncio.create_task(push_stream())
 

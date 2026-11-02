@@ -15,7 +15,7 @@ function Header({
   const [showCustomForm, setShowCustomForm] = useState(false);
   const [customYear, setCustomYear] = useState(2023);
   const [customRound, setCustomRound] = useState(1);
-  const [customType, setCustomType] = useState('R');
+  const [customType, setCustomType] = useState('Q');
 
   useEffect(() => {
     if (!showCustomForm) return undefined;
